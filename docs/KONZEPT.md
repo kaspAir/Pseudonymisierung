@@ -367,11 +367,21 @@ Der Engpass sind die 4 Kerne: NER läuft auf CPU, ein HERMES-Diktat ist kein kur
 
 ### 8.3 Zwei Messungen VOR dem Produktcode
 
-1. **Python-3.9-Kompatibilität** der in Frage kommenden NER-Bibliotheken gegen die Paketquellen
-   **prüfen, nicht annehmen.** Ausweg falls nötig: eigene Python-Version im Home-Verzeichnis
-   (kein Root nötig) oder v1 ohne Stufe C.
-2. **NER-Latenz an einem echten HERMES-Diktattext** auf dem Host messen. Die Sekundenzahl wird
-   **nicht geschätzt.**
+**1. Python-3.9-Kompatibilität — ERLEDIGT (2026-07-20, gegen PyPI geprüft):**
+
+| Bibliothek | Version | `requires_python` | auf 3.9.2 |
+|---|---|---|---|
+| spaCy | 3.8.14 | `<3.15,>=3.9` | **läuft** |
+| presidio-analyzer | 2.2.363 | `<3.15,>=3.10` | **fällt aus** |
+
+**Folgerung:** Die Erkennung wird direkt auf **spaCy** aufgebaut, nicht auf einem Rahmenwerk
+darüber. Presidio wäre der naheliegende Fertigbaustein gewesen, ist auf dem Zielhost aber nicht
+installierbar. Angesichts der mandantenspezifischen Verfahrensnummern-Muster (4.1 Stufe A) und
+der Drei-Bänder-Logik (4.2) hätten wir Presidio an genau diesen Stellen ohnehin aufgebogen.
+Eine eigene Python-Version im Home-Verzeichnis ist damit **nicht** nötig.
+
+**2. NER-Latenz an einem echten HERMES-Diktattext** auf dem Host messen — **offen**.
+Die Sekundenzahl wird nicht geschätzt.
 
 Erst danach steht fest, ob Stufe C in v1 vorkommt. Bis dahin gilt sie als offen, nicht als zugesagt.
 
