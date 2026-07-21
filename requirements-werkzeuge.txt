@@ -1,0 +1,5 @@
+# Nur fuer die Skripte unter scripts/ noetig, nicht fuer den Dienst selbst.
+# Der Dienst arbeitet auf Text und kennt keine Dateiformate.
+openpyxl==3.1.5
+pypdf==5.1.0
+defusedxml==0.7.1
