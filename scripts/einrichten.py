@@ -41,11 +41,104 @@ from app.models import Anbieterschluessel, Anwendung, Mandant    # noqa: E402
 from app.tresor import Tresor, TresorFehlt                       # noqa: E402
 
 
+def _fingerabdruck(wert):
+    """Wiedererkennbar, ohne den Schluessel preiszugeben."""
+    # Reines ASCII: Auslassungspunkte als Sonderzeichen kommen in manchen
+    # Konsolen zerstueckelt an und verunsichern beim Vergleichen.
+    sichtbar = 8 if len(wert) > 16 else 2
+    return "%s...%s (Laenge %d)" % (wert[:sichtbar], wert[-4:], len(wert))
+
+
+def pruefe_schluessel(sitzung, tresor, anwendung_schluessel, anbieter):
+    """Prueft den hinterlegten Schluessel gegen den Anbieter.
+
+    Gibt den Schluessel NIE aus - nur einen Fingerabdruck, an dem sich
+    erkennen laesst, ob der richtige hinterlegt ist. Der Live-Aufruf verwendet
+    max_tokens=1; er kostet praktisch nichts und beantwortet die Frage
+    eindeutig, statt sie zu vermuten.
+    """
+    import requests
+
+    q = sitzung.query(Anbieterschluessel).filter(
+        Anbieterschluessel.widerrufen_am.is_(None))
+    if anwendung_schluessel:
+        anwendung = sitzung.query(Anwendung).filter(
+            Anwendung.schluessel == anwendung_schluessel).one_or_none()
+        if anwendung is None:
+            print("Unbekannte Anwendung: %s" % anwendung_schluessel)
+            return 1
+        q = q.filter(Anbieterschluessel.anwendung_id == anwendung.id)
+    if anbieter:
+        q = q.filter(Anbieterschluessel.anbieter == anbieter)
+
+    eintraege = q.all()
+    if not eintraege:
+        print("Kein hinterlegter Schluessel gefunden.")
+        return 1
+
+    fehler = 0
+    for k in eintraege:
+        try:
+            wert = tresor.entschluessle(k.chiffre)
+        except Exception as f:                      # noqa: BLE001
+            print("%-10s ENTSCHLUESSELUNG FEHLGESCHLAGEN (%s)"
+                  % (k.anbieter, type(f).__name__))
+            print("           -> passt PSEUDO_TRESOR_SCHLUESSEL noch zur Datenbank?")
+            fehler = 1
+            continue
+
+        print("%-10s %s" % (k.anbieter, _fingerabdruck(wert)))
+        if wert != wert.strip():
+            print("           WARNUNG: fuehrende/abschliessende Leerzeichen")
+
+        if k.anbieter == "anthropic":
+            if not wert.startswith("sk-ant-"):
+                print("           WARNUNG: beginnt nicht mit 'sk-ant-'")
+            antwort = requests.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={"x-api-key": wert, "anthropic-version": "2023-06-01",
+                         "content-type": "application/json"},
+                json={"model": "claude-haiku-4-5-20251001", "max_tokens": 1,
+                      "messages": [{"role": "user", "content": "hi"}]},
+                timeout=30,
+            )
+        elif k.anbieter == "voyage":
+            antwort = requests.post(
+                "https://api.voyageai.com/v1/embeddings",
+                headers={"Authorization": "Bearer %s" % wert,
+                         "content-type": "application/json"},
+                json={"model": "voyage-3", "input": ["hi"]},
+                timeout=30,
+            )
+        else:
+            print("           (kein Live-Test fuer diesen Anbieter)")
+            continue
+
+        if antwort.status_code == 200:
+            print("           Live-Test: OK (HTTP 200)")
+        else:
+            meldung = ""
+            try:
+                meldung = antwort.json().get("error", {}).get("message", "")
+            except ValueError:
+                meldung = antwort.text[:120]
+            print("           Live-Test: HTTP %d - %s" % (antwort.status_code, meldung))
+            if antwort.status_code == 401:
+                print("           -> Der hinterlegte Schluessel ist ungueltig.")
+                print("           -> Neu hinterlegen: einrichten.py --anwendung %s "
+                      "--anbieter %s" % (anwendung_schluessel or "<name>", k.anbieter))
+            fehler = 1
+
+    return fehler
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--tresor-erzeugen", action="store_true",
                    help="Neues Schluesselmaterial ausgeben und beenden")
     p.add_argument("--zeigen", action="store_true", help="Stand anzeigen")
+    p.add_argument("--pruefen", action="store_true",
+                   help="Hinterlegten Schluessel gegen den Anbieter pruefen")
     p.add_argument("--anwendung", help="Schluessel der Anwendung, z.B. hermes-pia")
     p.add_argument("--bezeichnung", default=None)
     p.add_argument("--anbieter", choices=("anthropic", "voyage"))
@@ -99,6 +192,11 @@ def main():
                 print("    KEIN Anbieterschluessel - Aufrufe scheitern mit 503.")
         s.close()
         return 0
+
+    if args.pruefen:
+        ergebnis = pruefe_schluessel(s, tresor, args.anwendung, args.anbieter)
+        s.close()
+        return ergebnis
 
     if not args.anwendung:
         print("--anwendung ist noetig (oder --zeigen / --tresor-erzeugen).")
