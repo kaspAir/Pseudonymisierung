@@ -1,0 +1,8 @@
+# Shell-Skripte MUESSEN mit LF ausgecheckt werden. Mit CRLF scheitert auf dem
+# Linux-Host jede Zeile mit "$'\r': command not found" - ein Fehler, der beim
+# Entwickeln unter Windows unsichtbar bleibt und erst im Deploy auftritt.
+*.sh text eol=lf
+
+# Lexika sind Daten, keine Quelltexte: keine Zeilenende-Umschreibung, sonst
+# aendert sich bei jedem Auschecken der halbe Diff.
+lexikon/*.txt text eol=lf
