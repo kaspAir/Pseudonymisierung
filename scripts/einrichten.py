@@ -13,11 +13,17 @@ Neues Tresor-Schluesselmaterial erzeugen (einmalig, in die .env eintragen):
 
     python scripts/einrichten.py --tresor-erzeugen
 
-Anwendung registrieren und Anthropic-Schluessel hinterlegen:
+Anwendung registrieren und Anthropic-Schluessel hinterlegen. Der Schluessel
+wird verdeckt abgefragt - EIN Befehl, gefahrlos einzufuegen:
+
+    python scripts/einrichten.py --anwendung hermes-pia \\
+        --bezeichnung "HERMES PIA" --anbieter anthropic
+
+Unbeaufsichtigt (z.B. aus einem Skript) geht es weiterhin ueber die Umgebung:
 
     export ANTHROPIC_API_KEY=sk-ant-...
     python scripts/einrichten.py --anwendung hermes-pia \\
-        --bezeichnung "HERMES PIA" --anbieter anthropic --aus ANTHROPIC_API_KEY
+        --anbieter anthropic --aus ANTHROPIC_API_KEY
 
 Stand anzeigen (gibt niemals Schluesselwerte aus):
 
@@ -44,7 +50,8 @@ def main():
     p.add_argument("--bezeichnung", default=None)
     p.add_argument("--anbieter", choices=("anthropic", "voyage"))
     p.add_argument("--aus", metavar="UMGEBUNGSVARIABLE",
-                   help="Name der Variable, die den Anbieterschluessel enthaelt")
+                   help="Name der Variable mit dem Anbieterschluessel. "
+                        "Fehlt die Angabe, wird der Schluessel verdeckt abgefragt.")
     p.add_argument("--mandant", default=None,
                    help="Schluessel nur fuer diesen Mandanten (sonst Vorgabe fuer alle)")
     args = p.parse_args()
@@ -110,14 +117,39 @@ def main():
         print("Anwendung vorhanden: %s" % anwendung.schluessel)
 
     if args.anbieter:
-        if not args.aus:
-            print("FEHLER: --aus <UMGEBUNGSVARIABLE> fehlt.")
-            s.rollback()
-            s.close()
-            return 1
-        wert = os.environ.get(args.aus, "").strip()
+        if args.aus:
+            wert = os.environ.get(args.aus, "").strip()
+            quelle = "Umgebungsvariable %s" % args.aus
+        else:
+            # Verdeckte Abfrage im Skript statt "read -s" in der Shell: beim
+            # Einfuegen eines mehrzeiligen Blocks wuerde ein Shell-read die
+            # NACHFOLGENDEN Zeilen als Eingabe verschlucken.
+            #
+            # Terminal und Nicht-Terminal werden AUSDRUECKLICH unterschieden.
+            # Sich allein auf getpass zu verlassen, waere unzuverlaessig: es
+            # greift je nach Betriebssystem an stdin vorbei direkt auf die
+            # Konsole zu und verhaelt sich ohne Terminal nicht einheitlich.
+            try:
+                if sys.stdin.isatty():
+                    import getpass
+                    wert = getpass.getpass(
+                        "Schluessel fuer %s (Eingabe bleibt unsichtbar): "
+                        % args.anbieter).strip()
+                    quelle = "Eingabe"
+                else:
+                    zeile = sys.stdin.readline()
+                    if not zeile:
+                        raise EOFError
+                    wert = zeile.strip()
+                    quelle = "stdin"
+            except (EOFError, KeyboardInterrupt):
+                print("Abgebrochen: kein Schluessel eingegeben.")
+                s.rollback()
+                s.close()
+                return 1
+
         if not wert:
-            print("FEHLER: Umgebungsvariable %r ist leer." % args.aus)
+            print("FEHLER: kein Schluessel erhalten (%s war leer)." % quelle)
             s.rollback()
             s.close()
             return 1

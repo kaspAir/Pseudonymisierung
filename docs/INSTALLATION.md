@@ -80,14 +80,16 @@ sonst stünde er in der Shell-Historie und in der Prozessliste.
 cd $HOME/pseudonymisierung-dev
 set -a; . ./.env; set +a
 
-read -s -p "Anthropic-Key: " ANTHROPIC_API_KEY; export ANTHROPIC_API_KEY; echo
-
 $HOME/venv-pseudonymisierung-dev/bin/python scripts/einrichten.py \
-    --anwendung hermes-pia --bezeichnung "HERMES PIA" \
-    --anbieter anthropic --aus ANTHROPIC_API_KEY
-
-unset ANTHROPIC_API_KEY
+    --anwendung hermes-pia --bezeichnung "HERMES PIA" --anbieter anthropic
 ```
+
+Der Schlüssel wird **verdeckt abgefragt** — er landet damit weder in der Shell-Historie noch in
+der Prozessliste.
+
+> Bewusst **kein** `read -s` in der Anleitung: fügt man einen mehrzeiligen Block in die Shell
+> ein, verschluckt ein `read` die *nachfolgenden Zeilen* als Eingabe. Die Abfrage gehört ins
+> Skript, nicht in die Anleitung.
 
 Prüfen (gibt niemals Schlüsselwerte aus):
 
