@@ -71,7 +71,21 @@ class Befund:
 _RE_EMAIL = re.compile(r"\b[\w.%+-]+@[\w.-]+\.[A-Za-z]{2,}\b")
 _RE_AHV = re.compile(r"\b756[.\s]?\d{4}[.\s]?\d{4}[.\s]?\d{2}\b")
 _RE_IBAN = re.compile(r"\b(?:CH|LI)\d{2}[ ]?(?:[0-9A-Z]{4}[ ]?){4}[0-9A-Z]{1}\b")
-_RE_TELEFON = re.compile(r"(?:\+41|\+423|0)(?:[ /.-]?\d){8,11}\b")
+# Schweizer/liechtensteinische Rufnummer in der ueblichen Gruppierung
+# 0XX XXX XX XX bzw. +41 XX XXX XX XX.
+#
+# Die fruehere, lockere Fassung "(?:\+41|\+423|0)(?:[ /.-]?\d){8,11}" ist
+# VERWORFEN: sie verschluckte Versionsnummern und Daten aus Dokumentkoepfen
+# ("1.0 01.02.2024"). An 189 Fachtexten gemessen hatten nur 1% der Treffer ein
+# Telefon-Stichwort davor; die haeufigsten Ziffernformen waren Datumsangaben.
+# Weil Telefonnummern im Band "sicher" liegen, waeren sie STILL ersetzt worden -
+# jedes Datum im Dokument waere zu einem Platzhalter geworden.
+_RE_TELEFON = re.compile(
+    r"(?<![\d.])"
+    r"(?:\+41|\+423|0041|00423|0)[ /-]?(?:\(0\)[ /-]?)?"
+    r"\d{2}[ /.-]?\d{3}[ /.-]?\d{2}[ /.-]?\d{2}"
+    r"(?![\d.])"
+)
 # Strasse mit Hausnummer - Hausnummer ist das tragende Signal.
 _RE_ADRESSE = re.compile(
     r"\b[A-ZÄÖÜ][\wäöüéèà-]+(?:strasse|weg|gasse|platz|allee|str\.)\s+\d+[a-z]?\b",
@@ -123,15 +137,24 @@ _STUFE_A = [
 # Anrede- und Funktionsanker. Das sind gewoehnliche deutsche Woerter, keine
 # erfundenen Daten. Die NAMENSLEXIKA dagegen werden NICHT hier erfunden - sie
 # werden aus einer gepflegten Datei geladen (lexikon.py) und sind anfangs leer.
-_ANKER = (
-    r"Herr|Frau|Hr\.|Fr\.|Dr\.|Prof\.|Regierungsrat|Regierungsraetin|"
-    r"Gemeindepraesident|Gemeindepraesidentin|Stadtpraesident|Amtsleiter|"
-    r"Amtsleiterin|Projektleiter|Projektleiterin|zustaendig ist|"
-    r"verantwortlich ist|vertreten durch"
+# Zwei Klassen von Ankern - der Unterschied ist wichtig:
+#
+# ANREDE  Nach "Herr"/"Frau"/"Dr." folgt IMMER eine Person. Hier wird auch
+#         dann erkannt, wenn das Wort zugleich Ortschaft oder Alltagswort ist
+#         ("Frau Basel", "Herr Bau").
+# FUNKTION Nach einer Rollenbezeichnung kann ebenso gut eine Organisation oder
+#         ein Ort stehen ("Projektleiter Informatik", "zustaendig ist Bern").
+#         Hier wird nicht erkannt, wenn das Wort als Ortschaft oder
+#         Alltagswort bekannt ist - sonst erzeugt die Regel Fehlalarme.
+_ANREDE = r"Herr|Frau|Hr\.|Fr\.|Dr\.|Prof\."
+_FUNKTION = (
+    r"Regierungsrat|Regierungsraetin|Gemeindepraesident|Gemeindepraesidentin|"
+    r"Stadtpraesident|Amtsleiter|Amtsleiterin|Projektleiter|Projektleiterin|"
+    r"zustaendig ist|verantwortlich ist|vertreten durch"
 )
-_RE_ANKER_NAME = re.compile(
-    r"(?:%s)\s+([A-ZÄÖÜ][\wäöüéèà-]{1,}(?:\s+[A-ZÄÖÜ][\wäöüéèà-]{1,})?)" % _ANKER
-)
+_NAMENSTEIL = r"[A-ZÄÖÜ][\wäöüéèà-]{1,}(?:\s+[A-ZÄÖÜ][\wäöüéèà-]{1,})?"
+_RE_ANREDE_NAME = re.compile(r"(?:%s)\s+(%s)" % (_ANREDE, _NAMENSTEIL))
+_RE_FUNKTION_NAME = re.compile(r"(?:%s)\s*:?\s+(%s)" % (_FUNKTION, _NAMENSTEIL))
 
 # Jedes grossgeschriebene Wort. Im Deutschen ist das FAST KEIN Namenssignal:
 # alle Substantive und jedes Satzanfangswort sind gross. Gemessen an einem
@@ -246,19 +269,29 @@ class Erkenner:
                 )
 
         # Stufe B: Name MIT Anker -> sicher
-        for m in _RE_ANKER_NAME.finditer(text):
-            name = m.group(1)
-            a, b = m.start(1), m.end(1)
-            if not _frei(a, b) or self._freigegeben(name, K_PERSON_NAME):
-                continue
-            # Die ganze Fundstelle sperren, nicht nur den Namen: das Anredewort
-            # selbst ist teils ebenfalls ein Nachname ("Herr", "Frau" stehen in
-            # der BfS-Liste) und wuerde sonst als eigener Befund blockieren.
-            belegt.append((m.start(), m.end()))
-            befunde.append(
-                Befund(K_PERSON_NAME, name, a, b, 0.93, BAND_SICHER,
-                       "erkannt_kontextanker_anrede", feld)
-            )
+        for regex, grund, streng in (
+            (_RE_ANREDE_NAME, "erkannt_kontextanker_anrede", False),
+            (_RE_FUNKTION_NAME, "erkannt_kontextanker_funktion", True),
+        ):
+            for m in regex.finditer(text):
+                name = m.group(1)
+                a, b = m.start(1), m.end(1)
+                if not _frei(a, b) or self._freigegeben(name, K_PERSON_NAME):
+                    continue
+                # Nach einer Rollenbezeichnung kann eine Organisation oder ein
+                # Ort stehen. Ist das erste Wort als Ortschaft oder Alltagswort
+                # bekannt, wird hier nichts gemeldet.
+                if streng and name.split()[0].casefold() in self._nicht_person:
+                    continue
+                # Die ganze Fundstelle sperren, nicht nur den Namen: das
+                # Anredewort selbst ist teils ebenfalls ein Nachname ("Herr",
+                # "Frau" stehen in der BfS-Liste) und wuerde sonst als eigener
+                # Befund blockieren.
+                belegt.append((m.start(), m.end()))
+                befunde.append(
+                    Befund(K_PERSON_NAME, name, a, b, 0.93, BAND_SICHER,
+                           grund, feld)
+                )
 
         # Stufe B2: Vorname unmittelbar vor Nachname -> sicher.
         # Das ist das staerkste Signal ohne Anrede: zwei benachbarte

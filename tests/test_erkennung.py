@@ -112,6 +112,38 @@ def test_wortliste_verhindert_fehlalarme_auf_alltagswoertern():
     assert mit == []
 
 
+def test_datum_und_version_sind_keine_telefonnummer():
+    """Beweist: Versions- und Datumsangaben aus Dokumentkoepfen werden NICHT
+    als Telefonnummer erkannt. Solche Treffer laegen im Band 'sicher' und
+    wuerden still ersetzt - jedes Datum im Dokument wuerde zum Platzhalter."""
+    for harmlos in ("Version 1.0 01.02.2024", "Stand 31.12.2023 14.30",
+                    "V0.14 vom 7.11.2019", "Betrag 1 234 567.80"):
+        befunde, _ = _e().pruefe(harmlos)
+        assert befunde == [], "Fehlalarm bei %r" % harmlos
+
+
+def test_echte_telefonnummern_werden_erkannt():
+    """Beweist: Die strengere Fassung erkennt die ueblichen Schreibweisen
+    weiterhin."""
+    for nummer in ("031 633 11 22", "+41 31 633 11 22", "+41 79 123 45 67",
+                   "0041 31 633 11 22", "079/123 45 67"):
+        befunde, _ = _e().pruefe("Erreichbar unter %s heute." % nummer)
+        assert [b.kategorie for b in befunde] == [erkennung.K_PERSON_KONTAKT], \
+            "nicht erkannt: %r" % nummer
+
+
+def test_funktionsanker_meldet_keine_organisation():
+    """Beweist: Nach einer Rollenbezeichnung kann eine Organisation oder ein
+    Ort stehen - "Projektleiter Informatik" ist kein Personenname, "Frau Basel"
+    dagegen schon."""
+    org, _ = _e(orte={"Bern"}, wortliste={"Informatik"}).pruefe(
+        "Projektleiter Informatik meldet. Zustaendig ist Bern."
+    )
+    assert org == []
+    person, _ = _e(orte={"Basel"}).pruefe("Zustaendig ist Frau Basel.")
+    assert [b.treffer for b in person] == ["Basel"]
+
+
 def test_anredewort_blockiert_nicht_als_eigener_befund():
     """Beweist: Das Anredewort selbst erzeugt keinen Befund - "Herr" und "Frau"
     stehen ebenfalls in der BfS-Nachnamenliste und wuerden sonst jeden Satz mit
