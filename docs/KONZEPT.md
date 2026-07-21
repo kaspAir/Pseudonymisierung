@@ -178,6 +178,19 @@ durchgereicht, nicht als Befund gemeldet und auf dem Rückweg nicht angefasst.
 
 Das technisch heikelste Stück.
 
+### 5.0 Form des Markers — Korrektur gegenüber dem ersten Entwurf
+
+Im ersten Entwurf stand `«P3»`. Diese Form ist **verworfen**: im Schweizer Deutsch sind `« »`
+die normalen Anführungszeichen. Ein Modell, das Schweizer Verwaltungstext schreibt, setzt und
+normalisiert diese Zeichen ständig — das Gegenteil dessen, was ein Marker braucht.
+
+**Gewählt: `{{P3}}`** — reines ASCII (überlebt cp1252-Exporte, JSON, SQLite), kommt in deutscher
+Prosa praktisch nicht vor, hat in Markdown keine Bedeutung und ist kollisionsfrei zu den
+Bestandsplatzhaltern `[Person_099]`/`[Org_148]`.
+
+**Nicht behauptet:** ob gängige Tokenizer `{{P3}}` stabil zusammenhalten, ist **nicht gemessen**.
+Die Form ist deshalb in `app/kern/platzhalter.py` gekapselt und austauschbar.
+
 ### 5.1 Entscheid: Marker statt realistischer Ersatznamen
 
 | Variante | Vorteil | Nachteil |
@@ -342,13 +355,31 @@ Anwendung es sichtbar anzeigen kann.
 
 ## 8. Betrieb und Machbarkeit
 
-### 8.1 Zielumgebung
+### 8.1 Zielumgebung — kein öffentlicher Zugang
 
-Geteiltes Infomaniak Managed Hosting, Gunicorn hinter PHP-Proxy, kein Docker in Produktion.
-SQLite. CI/CD über Jenkins per SSH. Promotion sequenziell **develop → test → integration → main**,
+Geteiltes Infomaniak Managed Hosting, Gunicorn, kein Docker in Produktion. SQLite.
+CI/CD über Jenkins per SSH. Promotion sequenziell **develop → test → integration → main**,
 Version bei jedem Promoten +0.0.1.
 
 **Port-Block: 8030–8033** (develop/test/integration/main).
+
+**Der Dienst bekommt keine Site, keine Subdomain und keinen PHP-Proxy.** Er bindet auf
+`127.0.0.1` und ist aus dem Internet nicht erreichbar. Alle Aufrufer laufen auf demselben Host
+(HERMES PIA 8000/8003, ProS 8010–8012, Dashboard 8020–8023, KI-Technology-Radar); sie setzen
+ihre `base_url` auf `http://127.0.0.1:8030/anthropic` bzw. `…/voyage`.
+
+Der PHP-Proxy existiert bei den übrigen Anwendungen nur, weil Apache öffentlichen Verkehr zu
+Gunicorn bringen muss. Hier gibt es keinen öffentlichen Verkehr — und damit liegen weder der
+Schlüsseltresor (6.4) noch die Zuordnungstabelle (6.3) je an einer öffentlichen Adresse.
+Das ist die einzige Konstellation, in der sich die Konzentration dieser Daten überhaupt
+rechtfertigen lässt.
+
+Verwaltung (Listenpflege, Schlüssel, Blockierrate) vorerst über einen SSH-Tunnel
+(`ssh -L 8030:127.0.0.1:8030 …`). Eine öffentliche Admin-Site liesse sich später nachrüsten;
+den umgekehrten Weg — erst exponieren, dann zurücknehmen — gibt es nicht.
+
+Die Befund-Anzeige für den Nutzer (A4) gehört in die **aufrufende** Anwendung: HERMES PIA
+markiert die Stelle im Diktattext, nicht der Dienst.
 
 ### 8.2 Gemessene Host-Kennzahlen (2026-07-20)
 
