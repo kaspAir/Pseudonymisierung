@@ -26,7 +26,10 @@ class Config:
                 % (", ".join(UMGEBUNGEN), self.umgebung)
             )
 
-        self.port = PORTS[self.umgebung]
+        # PSEUDO_PORT ueberschreibt den vorgesehenen Port. Noetig, wenn der
+        # Block 8030-8033 auf dem Zielhost bereits belegt ist - "keine Site
+        # angelegt" heisst nicht "Port frei".
+        self.port = int(os.environ.get("PSEUDO_PORT") or PORTS[self.umgebung])
         self.bind_host = "127.0.0.1"
 
         self.datenbank_url = os.environ.get(

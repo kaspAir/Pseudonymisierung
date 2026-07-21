@@ -42,6 +42,11 @@ case "$UMGEBUNG" in
        echo "Erlaubt: develop test integration main" >&2; exit 2 ;;
 esac
 
+# Der Port laesst sich ueberschreiben, ohne Code zu aendern - noetig, wenn der
+# vorgesehene Block auf dem Host belegt ist. Muss zur .env passen, die der
+# Dienst selbst liest.
+PORT="${PSEUDO_PORT:-$PORT}"
+
 REPO="${3:-$HOME/pseudonymisierung-$KURZ}"
 # Eigene virtuelle Umgebung JE STUFE: sonst aendert ein Abhaengigkeits-
 # Wechsel auf develop still auch die Produktion.
@@ -102,6 +107,25 @@ halte_an() {
 
 # ----------------------------------------------------------------- Start
 
+port_belegt() {
+    # Vorabpruefung, damit ein belegter Port SOFORT als solcher gemeldet wird.
+    # Ohne sie bindet Gunicorn fuenfmal vergeblich und stirbt mit einer
+    # Meldung, die nur im Fehlerprotokoll steht - der Aufrufer sieht dann bloss
+    # "nicht gesund" und sucht an der falschen Stelle.
+    "$VENV/bin/python" - "$PORT" <<'ENDE' 2>/dev/null
+import socket, sys
+s = socket.socket()
+s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+try:
+    s.bind(("127.0.0.1", int(sys.argv[1])))
+except OSError:
+    sys.exit(0)      # belegt
+finally:
+    s.close()
+sys.exit(1)          # frei
+ENDE
+}
+
 starte() {
     if laeuft; then
         melde "laeuft bereits (PID $(cat "$PIDDATEI"))"
@@ -110,6 +134,16 @@ starte() {
 
     [ -d "$REPO" ] || { melde "FEHLER: Repo fehlt: $REPO"; return 1; }
     cd "$REPO" || return 1
+
+    if [ -x "$VENV/bin/python" ] && port_belegt; then
+        melde "FEHLER: 127.0.0.1:$PORT ist bereits belegt - und zwar NICHT von uns."
+        melde "Wer dort antwortet:"
+        curl -sS -m 5 "http://127.0.0.1:$PORT/pseudo/v1/health" 2>&1 | head -c 200
+        echo
+        melde "Freien Port suchen und PSEUDO_PORT in der .env setzen:"
+        melde "  bash deploy/pseudo_ctl.sh ports"
+        return 1
+    fi
 
     if [ -f .env ]; then
         set -a; . ./.env; set +a
@@ -223,8 +257,42 @@ wachhund() {
 
 # ------------------------------------------------------------------ Start
 
+zeige_ports() {
+    echo "Belegte Ports im Bereich 8000-8100 (auf 127.0.0.1):"
+    if command -v ss > /dev/null 2>&1; then
+        ss -ltnp 2>/dev/null | awk 'NR==1 || /127.0.0.1:80[0-9][0-9]/'
+    elif command -v netstat > /dev/null 2>&1; then
+        netstat -ltnp 2>/dev/null | awk 'NR<=2 || /127.0.0.1:80[0-9][0-9]/'
+    else
+        echo "(weder ss noch netstat vorhanden - pruefe per Bindungsversuch)"
+    fi
+    echo
+    echo "Bindungsversuch je Port (frei = wir koennten ihn nehmen):"
+    for p in $(seq 8030 8060); do
+        if "$VENV/bin/python" - "$p" <<'ENDE' 2>/dev/null
+import socket, sys
+s = socket.socket(); s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+try:
+    s.bind(("127.0.0.1", int(sys.argv[1])))
+except OSError:
+    sys.exit(0)
+finally:
+    s.close()
+sys.exit(1)
+ENDE
+        then
+            printf '  %s BELEGT' "$p"
+            curl -sS -m 2 "http://127.0.0.1:$p/" 2>/dev/null | head -c 60
+            echo
+        else
+            printf '  %s frei\n' "$p"
+        fi
+    done
+}
+
 case "$BEFEHL" in
     deploy)   deploye ;;
+    ports)    zeige_ports ;;
     start)    starte ;;
     stop)     halte_an; melde "angehalten" ;;
     health)   if pruefe_gesundheit; then curl -s "$GESUNDHEIT"; echo; else
