@@ -139,6 +139,8 @@ def main():
     p.add_argument("--zeigen", action="store_true", help="Stand anzeigen")
     p.add_argument("--pruefen", action="store_true",
                    help="Hinterlegten Schluessel gegen den Anbieter pruefen")
+    p.add_argument("--widerrufene-loeschen", action="store_true",
+                   help="Widerrufene Anbieterschluessel endgueltig entfernen")
     p.add_argument("--anwendung", help="Schluessel der Anwendung, z.B. hermes-pia")
     p.add_argument("--bezeichnung", default=None)
     p.add_argument("--anbieter", choices=("anthropic", "voyage"))
@@ -197,6 +199,20 @@ def main():
         ergebnis = pruefe_schluessel(s, tresor, args.anwendung, args.anbieter)
         s.close()
         return ergebnis
+
+    if args.widerrufene_loeschen:
+        # Ein versehentlich eingegebener Wert bleibt sonst als widerrufene
+        # Zeile liegen. Meist harmlos - aber wer sich beim Eintippen vergreift,
+        # erwischt leicht ein anderes Geheimnis, und das gehoert dann nicht
+        # dauerhaft in diese Tabelle.
+        alt = s.query(Anbieterschluessel).filter(
+            Anbieterschluessel.widerrufen_am.isnot(None)).all()
+        for k in alt:
+            s.delete(k)
+        s.commit()
+        print("Widerrufene Anbieterschluessel entfernt: %d" % len(alt))
+        s.close()
+        return 0
 
     if not args.anwendung:
         print("--anwendung ist noetig (oder --zeigen / --tresor-erzeugen).")
