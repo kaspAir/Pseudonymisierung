@@ -14,8 +14,9 @@ geändert, kein Aufrufcode.
 
 | Dokument | Inhalt |
 |---|---|
+| [`docs/API.md`](docs/API.md) | **API-Referenz** — Endpunkte, Felder, Fehlercodes |
+| [`docs/ANBINDUNG.md`](docs/ANBINDUNG.md) | Anbindungsweg mit Begründungen und Abnahmekriterien |
 | [`docs/KONZEPT.md`](docs/KONZEPT.md) | Entwurf, Anforderungen, Risiken |
-| [`docs/ANBINDUNG.md`](docs/ANBINDUNG.md) | Vertrag für aufrufende Anwendungen |
 | [`docs/INSTALLATION.md`](docs/INSTALLATION.md) | Erstinstallation auf dem Host |
 | [`docs/BETRIEB.md`](docs/BETRIEB.md) | Umgebungsvariablen, Start, Verwaltung |
 | [`docs/KORPUS.md`](docs/KORPUS.md) | Bestand pseudonymisieren |

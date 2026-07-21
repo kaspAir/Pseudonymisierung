@@ -1,7 +1,7 @@
 # Anbindung einer Anwendung — Spezifikation
 
-Dieses Dokument ist **so geschrieben, dass es allein genügt**: wer eine aufrufende Anwendung
-anpasst, muss den Quellcode des Dienstes nicht lesen.
+Dieses Dokument beschreibt den **Weg** einer Anbindung mit Begründungen und Abnahmekriterien.
+Die feldgenaue Referenz aller Endpunkte steht in [`API.md`](API.md).
 
 Konkrete Befunde zu HERMES PIA stehen in Abschnitt 6.
 
