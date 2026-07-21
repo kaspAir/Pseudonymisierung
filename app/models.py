@@ -64,7 +64,10 @@ class Zuordnung(Base):
     mandant_id = Column(Integer, ForeignKey("mandant.id"), nullable=False)
     projekt_id = Column(Integer, ForeignKey("projekt.id"), nullable=False)
     kategorie = Column(String(40), nullable=False)
-    oberflaeche_norm = Column(String(300), nullable=False)
+    # KEINE Klartextspalte. Eine "normalisierte Oberflaeche" waere bequem zum
+    # Nachschauen und stuende doch im Klartext in genau der Tabelle, die
+    # ausschliesslich verschluesselt speichern soll. Gesucht wird ueber den
+    # HMAC, gelesen ueber die Chiffre.
     oberflaeche_hash = Column(String(64), nullable=False, index=True)
     klartext_chiffre = Column(Text, nullable=False)   # verschluesselt at rest
     nummer = Column(Integer, nullable=False)
@@ -101,6 +104,23 @@ class Listeneintrag(Base):
     gueltig_ab = Column(DateTime, default=_jetzt, nullable=False)
     widerrufen_am = Column(DateTime)
     widerrufen_durch = Column(String(200))
+
+
+class Nummernmuster(Base):
+    """Mandantenspezifische Geschaefts- und Verfahrensnummern.
+
+    Bewusst konfigurierbar und nicht fest verdrahtet: die Formate der Justiz
+    sind kantonal verschieden. Ein festes Muster waere entweder zu eng (findet
+    nichts) oder zu weit (blockiert alles).
+    """
+    __tablename__ = "nummernmuster"
+    id = Column(Integer, primary_key=True)
+    anwendung_id = Column(Integer, ForeignKey("anwendung.id"), nullable=False)
+    mandant_id = Column(Integer, ForeignKey("mandant.id"), nullable=False)
+    kategorie = Column(String(40), nullable=False)
+    regex = Column(String(300), nullable=False)
+    bezeichnung = Column(String(200))
+    widerrufen_am = Column(DateTime)
 
 
 class Vorgang(Base):

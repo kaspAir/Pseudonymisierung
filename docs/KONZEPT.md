@@ -135,6 +135,30 @@ punktgenau zu markieren.
 
 ---
 
+### 3.5 Der Entscheid zu einer Fundstelle
+
+```
+POST /pseudo/v1/befunde/{befund_id}/entscheid
+{ "entscheid": "freigeben", "muster": "Vogt",
+  "begruendung": "Systemname der Fachanwendung", "urheber": "…" }
+```
+
+**Der Klartext wird vom Aufrufer mitgeschickt, nicht beim Dienst nachgeschlagen.** Der Dienst
+speichert ihn nicht (`befund.treffer_hash` statt Klartext). Zur Absicherung wird das übergebene
+`muster` gegen den gespeicherten Wert geprüft — wer den Klartext nicht kennt, kann den Befund
+nicht entscheiden. Der gespeicherte Wert ist ein **HMAC**, kein blosser Hash: ein blosser
+SHA-256 eines kurzen Nachnamens wäre durch Ausprobieren sofort aufzulösen und damit kein Schutz.
+
+Die beiden Entscheide wirken unterschiedlich:
+
+| Entscheid | Bedeutung | Listeneintrag | Wirkung beim nächsten Aufruf |
+|---|---|---|---|
+| `freigeben` | Fehlalarm (Firmen-/Systemname) | Freigabe, Bereich `mandant` | Stelle wird nicht mehr gemeldet |
+| `ersetzen` | echter Personenbezug | **Sperre**, Bereich `mandant` | Stelle gilt als `sicher` und wird ersetzt |
+
+Ohne den zweiten Fall bliebe eine bestätigte Person dauerhaft im Band `unsicher` und würde bei
+jedem Aufruf erneut blockieren.
+
 ## 4. Erkennungsstrategie
 
 Alles lokal auf dem Schweizer Host (A8).
@@ -238,9 +262,8 @@ mandant(id, anwendung_id, externe_id, bezeichnung)     # org_id der Anwendung
 projekt(id, mandant_id, externe_id)                    # Konsistenzrahmen
 
 zuordnung(id, anwendung_id, mandant_id, projekt_id, kategorie,
-          oberflaeche_norm,
-          oberflaeche_hash,          # Suchschlüssel
-          klartext_chiffre,          # verschlüsselt at rest
+          oberflaeche_hash,          # Suchschlüssel, HMAC (nicht blosser Hash)
+          klartext_chiffre,          # verschlüsselt at rest — einzige Klartextquelle
           platzhalter,
           erstellt_am, letzte_nutzung)
   UNIQUE (anwendung_id, mandant_id, projekt_id, kategorie, oberflaeche_hash)
