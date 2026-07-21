@@ -5,6 +5,16 @@ Version 0.0.1 · gegen den Code geprüft am 2026-07-21
 Für den Anbindungsweg mit Begründungen und Abnahmekriterien siehe
 [`ANBINDUNG.md`](ANBINDUNG.md). Dieses Dokument ist die reine Referenz.
 
+Als Word-Dokument zum Weitergeben:
+
+```bash
+pip install -r requirements-werkzeuge.txt
+python scripts/md_nach_docx.py docs/API.md "docs/API-Referenz Pseudonymisierung.docx"
+```
+
+Die `.docx` wird **erzeugt und nicht versioniert** — eine von Hand gepflegte Zweitfassung liefe
+unweigerlich von dieser Datei weg, und dann gäbe es zwei Wahrheiten über dieselbe Schnittstelle.
+
 ---
 
 ## Basis

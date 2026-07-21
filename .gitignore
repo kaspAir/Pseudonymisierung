@@ -13,3 +13,7 @@ tmp/
 htmlcov/
 .idea/
 .vscode/
+
+# Aus Markdown erzeugt - nicht versioniert, damit keine veraltete Zweitfassung
+# derselben Schnittstelle entsteht. Neu erzeugen: siehe docs/API.md-Hinweis.
+docs/*.docx
