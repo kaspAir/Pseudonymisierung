@@ -28,7 +28,38 @@ def erkenner(lexika):
     return erkennung.Erkenner(
         nachnamen=lexika["nachnamen"], vornamen=lexika["vornamen"],
         orte=lexika["orte"], wortliste=lexika["wortliste"],
+        nachnamen_haeufig=lexika["nachnamen_haeufig"],
+        vornamen_haeufig=lexika["vornamen_haeufig"],
     )
+
+
+# Echtes Transkript aus HERMES PIA (2026-07-21). Die Spracherkennung liefert
+# durchgehend Kleinschreibung - damit fiel die gesamte Stufe B still aus und
+# "herr buergi" ging unpseudonymisiert an den Anbieter.
+DIKTAT = ("unser chef, herr buergi moechte, dass wir alle unsere services, "
+          "die auf unserem internen server in unserem eigenen rechenzentrum "
+          "betreiben, migrieren. das projekt heisst bki test 4.")
+
+
+def test_diktat_ohne_grossschreibung_wird_erkannt(erkenner):
+    """Beweist: In einem kleingeschriebenen Diktat wird ein Name mit Anrede
+    erkannt. Zuvor fand der Erkenner dort NICHTS und der Text ging
+    ungeschuetzt hinaus - das ist der schwerste Fehler dieser Fassung
+    gewesen."""
+    befunde, _ = erkenner.pruefe(DIKTAT)
+    treffer = {b.treffer.casefold() for b in befunde}
+    assert "buergi" in treffer
+
+
+def test_diktat_erzeugt_keine_fehlalarme(erkenner):
+    """Beweist: Ohne Grossschreibung feuern seltene Namen nicht - "unser" hat
+    4 Namenstraeger, "server" 7. Ohne Haeufigkeitsschwelle blockierte jeder
+    zweite Satz."""
+    befunde, _ = erkenner.pruefe(DIKTAT)
+    unsicher = {b.treffer.casefold() for b in befunde
+                if b.band == erkennung.BAND_UNSICHER}
+    assert "unser" not in unsicher
+    assert "server" not in unsicher
 
 
 def test_lexika_sind_vollstaendig_ausgeliefert(lexika):

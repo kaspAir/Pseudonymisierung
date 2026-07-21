@@ -47,6 +47,10 @@ def lade_lexika(verzeichnis):
         "vornamen": _lies_liste(os.path.join(verzeichnis, "vornamen.txt")),
         "wortliste": _lies_liste(os.path.join(verzeichnis, "wortliste.txt")),
         "orte": _lies_liste(os.path.join(verzeichnis, "ortschaften.txt")),
+        "nachnamen_haeufig": _lies_liste(
+            os.path.join(verzeichnis, "nachnamen_haeufig.txt")),
+        "vornamen_haeufig": _lies_liste(
+            os.path.join(verzeichnis, "vornamen_haeufig.txt")),
     }
 
 
@@ -62,7 +66,8 @@ def erzeuge_app(config=None, sitzungsfabrik=None, weiterleiter=None, tresor=None
         if namenslexikon is not None:
             # Einfache Form: eine Liste, als Nachnamen gewertet.
             lexika = {"nachnamen": set(namenslexikon), "vornamen": set(),
-                      "wortliste": set(), "orte": set()}
+                      "wortliste": set(), "orte": set(),
+                      "nachnamen_haeufig": set(), "vornamen_haeufig": set()}
         else:
             lexika = lade_lexika(config.lexikon_verzeichnis)
 

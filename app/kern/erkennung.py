@@ -156,6 +156,37 @@ _NAMENSTEIL = r"[A-ZÄÖÜ][\wäöüéèà-]{1,}(?:\s+[A-ZÄÖÜ][\wäöüéèà
 _RE_ANREDE_NAME = re.compile(r"(?:%s)\s+(%s)" % (_ANREDE, _NAMENSTEIL))
 _RE_FUNKTION_NAME = re.compile(r"(?:%s)\s*:?\s+(%s)" % (_FUNKTION, _NAMENSTEIL))
 
+# Fassungen fuer Text OHNE verlaessliche Gross-/Kleinschreibung.
+#
+# Spracherkennung liefert haeufig durchgehend kleingeschriebenen Text
+# ("unser chef, herr buergi moechte..."). Bei einem diktat-getriebenen Produkt
+# ist Grossschreibung als Namenssignal dann WERTLOS - und schlimmer: die
+# gesamte Stufe B faellt still aus, der Text geht ungeschuetzt hinaus. Genau
+# das ist am 2026-07-21 in HERMES PIA passiert.
+# Nur EIN Wort nach dem Anker: ohne Grossschreibung liesse sich sonst nicht
+# entscheiden, wo der Name aufhoert - aus "herr buergi moechte" wuerde
+# "buergi moechte".
+_NAMENSTEIL_EGAL = r"[A-Za-zÄÖÜäöü][\wäöüéèà-]{1,}"
+_RE_ANREDE_NAME_EGAL = re.compile(
+    r"(?:%s)\s+(%s)" % (_ANREDE, _NAMENSTEIL_EGAL), re.IGNORECASE)
+_RE_FUNKTION_NAME_EGAL = re.compile(
+    r"(?:%s)\s*:?\s+(%s)" % (_FUNKTION, _NAMENSTEIL_EGAL), re.IGNORECASE)
+_RE_WORT_EGAL = re.compile(r"\b[A-Za-zÄÖÜäöü][\wäöüéèàáâêîôûëïüç-]{1,}\b")
+
+# Ab welchem Anteil grossgeschriebener Woerter der Text als normal geschrieben
+# gilt. Deutscher Fliesstext liegt weit darueber, weil alle Substantive gross
+# sind; ein Diktat-Transkript liegt nahe null.
+_SCHWELLE_GROSS = 0.08
+
+
+def ohne_grossschreibung(text):
+    """Traegt dieser Text ueberhaupt eine verwertbare Grossschreibung?"""
+    woerter = re.findall(r"\b[A-Za-zÄÖÜäöü][\wäöüß-]{1,}\b", text)
+    if len(woerter) < 8:
+        return False          # zu kurz fuer eine Aussage
+    gross = sum(1 for w in woerter if w[0].isupper())
+    return (gross / float(len(woerter))) < _SCHWELLE_GROSS
+
 # Jedes grossgeschriebene Wort. Im Deutschen ist das FAST KEIN Namenssignal:
 # alle Substantive und jedes Satzanfangswort sind gross. Gemessen an einem
 # HERMES-nahen Probetext trafen 12% der verschiedenen grossgeschriebenen
@@ -205,7 +236,8 @@ class Erkenner:
     """
 
     def __init__(self, listen=None, zusatzmuster=None, namenslexikon=None,
-                 nachnamen=None, vornamen=None, wortliste=None, orte=None):
+                 nachnamen=None, vornamen=None, wortliste=None, orte=None,
+                 nachnamen_haeufig=None, vornamen_haeufig=None):
         self._listen = listen
         self._zusatz = list(zusatzmuster or [])
         # namenslexikon bleibt als einfache Form bestehen und zaehlt als
@@ -221,6 +253,13 @@ class Erkenner:
         # Anrede ("Frau Basel") oder als Vorname+Nachname ("Anna Basel") wird
         # weiterhin erkannt und ersetzt - es entsteht also kein Loch.
         self._nicht_person = _menge(wortliste) | self._orte
+        # Namen, die haeufig genug sind, um ALLEIN als Signal zu taugen.
+        # Nur wirksam ohne verlaessliche Grossschreibung; sonst waere jedes
+        # Wort ein Kandidat und Namen mit einer Handvoll Traegern ("Unser": 4,
+        # "Server": 7) erzeugten laufend Fehlalarme. Fehlen die Listen, bleibt
+        # es beim vollen Bestand.
+        self._nachnamen_haeufig = _menge(nachnamen_haeufig) or self._nachnamen
+        self._vornamen_haeufig = _menge(vornamen_haeufig) or self._vornamen
 
     def pruefe(self, text, feld=None):
         """Liefert (befunde, bestandsstellen)."""
@@ -268,10 +307,18 @@ class Erkenner:
                            BAND_SICHER, grund, feld)
                 )
 
+        # Traegt der Text eine verwertbare Grossschreibung? Ein Diktat-
+        # Transkript tut das nicht - dann sind andere Ausdruecke noetig.
+        diktat = ohne_grossschreibung(text)
+        re_anrede = _RE_ANREDE_NAME_EGAL if diktat else _RE_ANREDE_NAME
+        re_funktion = _RE_FUNKTION_NAME_EGAL if diktat else _RE_FUNKTION_NAME
+        re_wort = _RE_WORT_EGAL if diktat else _RE_WORT
+        zusatz = "; ohne_grossschreibung" if diktat else ""
+
         # Stufe B: Name MIT Anker -> sicher
         for regex, grund, streng in (
-            (_RE_ANREDE_NAME, "erkannt_kontextanker_anrede", False),
-            (_RE_FUNKTION_NAME, "erkannt_kontextanker_funktion", True),
+            (re_anrede, "erkannt_kontextanker_anrede" + zusatz, False),
+            (re_funktion, "erkannt_kontextanker_funktion" + zusatz, True),
         ):
             for m in regex.finditer(text):
                 name = m.group(1)
@@ -296,16 +343,24 @@ class Erkenner:
         # Stufe B2: Vorname unmittelbar vor Nachname -> sicher.
         # Das ist das staerkste Signal ohne Anrede: zwei benachbarte
         # Lexikontreffer in genau dieser Rollenfolge.
-        woerter = [m for m in _RE_WORT.finditer(text)]
+        woerter = [m for m in re_wort.finditer(text)]
         uebersprungen = set()
         if self._vornamen and self._nachnamen:
             for i in range(len(woerter) - 1):
                 links, rechts = woerter[i], woerter[i + 1]
                 if text[links.end():rechts.start()].strip():
                     continue          # nicht unmittelbar benachbart
-                if links.group(0).casefold() not in self._vornamen:
+                links_klein = links.group(0).casefold()
+                rechts_klein = rechts.group(0).casefold()
+                if links_klein not in self._vornamen:
                     continue
-                if rechts.group(0).casefold() not in self._nachnamen:
+                if rechts_klein not in self._nachnamen:
+                    continue
+                # Ohne Grossschreibung ist JEDES Wort ein Kandidat; ohne diese
+                # Schranke wird aus "server in" ein Personenname.
+                if diktat and (links_klein in self._nicht_person
+                               or rechts_klein in self._nicht_person
+                               or len(links_klein) < 3 or len(rechts_klein) < 3):
                     continue
                 voll = text[links.start():rechts.end()]
                 if not _frei(links.start(), rechts.end()) \
@@ -327,8 +382,12 @@ class Erkenner:
             if not _frei(m.start(), m.end()):
                 continue
 
-            ist_nachname = klein in self._nachnamen
-            ist_vorname = klein in self._vornamen
+            # Ohne Grossschreibung zaehlt nur, was haeufig genug ist, um
+            # allein ein Signal zu sein.
+            nachnamen = self._nachnamen_haeufig if diktat else self._nachnamen
+            vornamen = self._vornamen_haeufig if diktat else self._vornamen
+            ist_nachname = klein in nachnamen
+            ist_vorname = klein in vornamen
             if not (ist_nachname or ist_vorname):
                 continue
 
@@ -348,17 +407,25 @@ class Erkenner:
             if klein in self._nicht_person:
                 continue
 
+            # Ohne Grossschreibung faellt das staerkste Filterkriterium weg.
+            # Sehr kurze Woerter sind dann fast immer Funktionswoerter
+            # ("in", "an", "wir") und nie ein belastbares Namenssignal.
+            if diktat and len(klein) < 4:
+                continue
+
             # Am Satzanfang ist Grossschreibung erzwungen und damit kein
-            # Namenssignal. Ohne weiteres Signal wird hier nicht blockiert.
-            if _ist_satzanfang(text, m.start()):
+            # Namenssignal. Ohne verwertbare Grossschreibung entfaellt diese
+            # Ueberlegung - dort ist kein Wort "erzwungen" gross.
+            if not diktat and _ist_satzanfang(text, m.start()):
                 continue
 
             belegt.append((m.start(), m.end()))
             befunde.append(
                 Befund(K_PERSON_NAME, wort, m.start(), m.end(), 0.61,
                        BAND_UNSICHER,
-                       "erkannt_lexikon_%s; kein_kontextanker_anrede"
-                       % ("nachname" if ist_nachname else "vorname"), feld)
+                       "erkannt_lexikon_%s; kein_kontextanker_anrede%s"
+                       % ("nachname" if ist_nachname else "vorname", zusatz),
+                       feld)
             )
 
         befunde.sort(key=lambda b: b.von)

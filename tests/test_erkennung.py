@@ -144,6 +144,30 @@ def test_funktionsanker_meldet_keine_organisation():
     assert [b.treffer for b in person] == ["Basel"]
 
 
+def test_normaler_text_gilt_nicht_als_diktat():
+    """Beweist: Deutscher Fliesstext wird nicht faelschlich als Text ohne
+    Grossschreibung eingestuft - sonst griffen dort die schwaecheren Regeln."""
+    assert not erkennung.ohne_grossschreibung(
+        "Der Steuerungsausschuss hat den Auftrag genehmigt. Die Studie zeigt, "
+        "dass der Nutzen die Kosten uebersteigt."
+    )
+    assert erkennung.ohne_grossschreibung(
+        "der steuerungsausschuss hat den auftrag genehmigt und die studie "
+        "zeigt dass der nutzen die kosten uebersteigt"
+    )
+
+
+def test_ohne_grossschreibung_nur_ein_wort_nach_der_anrede():
+    """Beweist: Ohne Grossschreibung wird nach der Anrede nur EIN Wort als
+    Name genommen - sonst wuerde aus "herr buergi moechte" der Name
+    "buergi moechte"."""
+    befunde, _ = _e(nachnamen={"buergi"}).pruefe(
+        "unser chef, herr buergi moechte dass wir die dienste migrieren und "
+        "das projekt bald starten koennen"
+    )
+    assert [b.treffer for b in befunde] == ["buergi"]
+
+
 def test_anredewort_blockiert_nicht_als_eigener_befund():
     """Beweist: Das Anredewort selbst erzeugt keinen Befund - "Herr" und "Frau"
     stehen ebenfalls in der BfS-Nachnamenliste und wuerden sonst jeden Satz mit

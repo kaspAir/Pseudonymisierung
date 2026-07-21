@@ -80,6 +80,15 @@ def schreibe(dateiname, namen, kopf):
     return pfad, len(namen)
 
 
+# Ab wie vielen Traegern ein Name als alleinstehendes Signal taugt.
+#
+# Ohne verlaessliche Grossschreibung (Diktat) ist JEDES Wort ein Kandidat.
+# Dann feuern Namen, die zwar in der Liste stehen, aber praktisch nie eine
+# Person meinen: "Unser" hat 4 Traeger, "Server" 7 - gegenueber Buergi 2999
+# und Vogt 4801. Die Schwelle trennt das, ohne etwas zu erfinden.
+SCHWELLE_HAEUFIG = 20
+
+
 def main():
     if len(sys.argv) < 3:
         print(__doc__)
@@ -101,8 +110,27 @@ def main():
          "Abgeleitet, nicht erfunden. %d Eintraege." % len(vornamen)],
     )
 
+    haeufig_n = {n: c for n, c in nachnamen.items() if c >= SCHWELLE_HAEUFIG}
+    haeufig_v = {n: c for n, c in vornamen.items() if c >= SCHWELLE_HAEUFIG}
+    pfad_hn, anzahl_hn = schreibe(
+        "nachnamen_haeufig.txt", haeufig_n,
+        ["Nachnamen mit mindestens %d Traegern" % SCHWELLE_HAEUFIG,
+         "Quelle: Bundesamt fuer Statistik (BfS), Blatt 'CH'",
+         "Nur fuer ALLEINSTEHENDE Treffer in Text ohne Grossschreibung.",
+         "%d von %d Nachnamen." % (len(haeufig_n), len(nachnamen))],
+    )
+    pfad_hv, anzahl_hv = schreibe(
+        "vornamen_haeufig.txt", haeufig_v,
+        ["Vornamen mit mindestens %d Traegern" % SCHWELLE_HAEUFIG,
+         "Quelle: Bundesamt fuer Statistik (BfS), Blatt '%s'" % blatt,
+         "Nur fuer ALLEINSTEHENDE Treffer in Text ohne Grossschreibung.",
+         "%d von %d Vornamen." % (len(haeufig_v), len(vornamen))],
+    )
+
     print("Nachnamen: %6d -> %s" % (anzahl_n, pfad_n))
     print("Vornamen:  %6d -> %s" % (anzahl_v, pfad_v))
+    print("davon haeufig (>= %d Traeger): %d Nachnamen, %d Vornamen"
+          % (SCHWELLE_HAEUFIG, anzahl_hn, anzahl_hv))
     ueberschneidung = set(nachnamen) & set(vornamen)
     print("In beiden Listen: %d" % len(ueberschneidung))
     return 0

@@ -35,7 +35,12 @@ import sys
 WURZEL = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LEXIKON = os.path.join(WURZEL, "lexikon")
 
-_RE_WORT = re.compile(r"\b[A-ZÄÖÜ][\wäöüéèàáâêîôûëïüç-]{1,}\b")
+# Auch KLEINGESCHRIEBENE Woerter, nicht nur grossgeschriebene.
+#
+# Spracherkennung liefert durchgehend kleingeschriebenen Text. Dort ist jedes
+# Wort ein Kandidat fuer einen Lexikontreffer - auch "unser", "dass", "server".
+# Eine Wortliste, die nur Grossgeschriebenes kennt, hilft dort nicht.
+_RE_WORT = re.compile(r"\b[A-Za-zÄÖÜäöü][\wäöüéèàáâêîôûëïüç-]{1,}\b")
 _RE_MARKER = re.compile(r"\[(?:Person|Org)_\d+\]")
 
 
@@ -88,7 +93,9 @@ def main():
             ohne_marker.append(os.path.basename(pfad))
         # Platzhalter entfernen, damit "Person"/"Org" nicht als Wort zaehlen.
         text = _RE_MARKER.sub(" ", text)
-        for wort in set(_RE_WORT.findall(text)):
+        # Kleingeschrieben zaehlen: der Erkenner vergleicht ebenfalls
+        # kleingeschrieben, und so zaehlen "Kosten" und "kosten" gemeinsam.
+        for wort in set(w.casefold() for w in _RE_WORT.findall(text)):
             dok_haeufigkeit[wort] += 1
 
     nachnamen = lade_liste("nachnamen.txt")
