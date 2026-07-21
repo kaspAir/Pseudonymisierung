@@ -5,7 +5,7 @@
 | `nachnamen.txt` | 243'402 | Namenssignal | Bundesamt für Statistik (BfS), ständige Wohnbevölkerung, Blatt `CH` |
 | `vornamen.txt` | 66'916 | Namenssignal | Bundesamt für Statistik (BfS), Blatt `2024` |
 | `ortschaften.txt` | 4'421 | **Gegensignal** + Adresse | Amtliches Ortschaftenverzeichnis (AMTOVZ) |
-| `wortliste.txt` | **fehlt noch** | Gegensignal | siehe unten |
+| `wortliste.txt` | 131 | **Gegensignal** | abgeleitet aus bereits pseudonymisierten Fachtexten |
 
 Erzeugt mit `scripts/importiere_namen.py` und `scripts/importiere_orte.py`.
 Nichts davon ist erfunden.
@@ -37,12 +37,45 @@ Gemessen an einem HERMES-nahen Probetext (48 verschiedene grossgeschriebene Wör
 | + Satzanfang zählt nicht als Signal | 7 | `Der`/`Die`/`Das` weg |
 | + weicher Zeilenumbruch ≠ Satzanfang | **3** | es bleiben `Bau`, `Kosten`, `Recht` |
 | + `ortschaften.txt`, + Anredewort gesperrt | 3 | `Basel`/`Arbon`/`Baden` und `Herr` kämen sonst dazu |
-| + gepflegte `wortliste.txt` | erwartet 0 | **noch nicht belegt** |
+| + abgeleitete `wortliste.txt` | **1** | es bleibt `Sitz` |
 
 An einem längeren Probetext mit Namen, Adresse und Ortschaften erkennt der Dienst heute
 richtig: `Herr Bürgi` (Anrede), `Anna Meier` (Vorname + Nachname), E-Mail, Telefon,
 `Musterstrasse 5, 3011 Bern` (Adresse als Einheit) — und blockiert korrekt bei
-`Projektleitung: Steiner`. Fälschlich blockieren noch `Kosten`, `Recht`, `Bau`, `Sitz`.
+`Projektleitung: Steiner`. Fälschlich blockiert nur noch `Sitz`.
+
+## Wie `wortliste.txt` entstanden ist
+
+Abgeleitet mit `scripts/leite_wortliste_ab.py` aus rund 190 bereits pseudonymisierten
+Fachtexten: dort wurden Personennamen durch `[Person_099]` ersetzt, **jedes verbliebene
+grossgeschriebene Wort ist per Konstruktion kein Personenname**.
+
+**Die Absicherung ist die Dokumenthäufigkeit, nicht eine Annahme über die Qualität der
+damaligen Pseudonymisierung.** Gezählt wird nicht, wie *oft* ein Wort vorkommt, sondern in wie
+*vielen* Dokumenten. Ein übersehener Personenname steht in einem, selten zwei Dossiers;
+Fachsprache steht in fast allen. Aufgenommen wurden nur Wörter, die in **mindestens 10 von 189**
+Dokumenten vorkommen — und nur solche, die überhaupt in den Namenslisten stehen, denn alles
+andere kann gar keinen Fehlalarm auslösen.
+
+| Schwelle | Wörter | Beurteilung |
+|---|---|---|
+| 2 | 465 | zu tief — einzelne Dossiers können durchschlagen |
+| 10 | **131** | gewählt; enthält `Bau`, `Justiz`, `Franken`, `Markt`, `Plan`, `Schutz` |
+| 20 | 74 | `Justiz` würde noch blockieren — für Justizkunden untragbar |
+| 80 | 10 | nahezu wirkungslos |
+
+Die Liste ist **kuratiert**: sie gehört fachlich in den Bereich `betrieb` und ist im Diff
+prüfbar. Sie wurde durchgesehen; kein Eintrag ist erkennbar ein Personenname. Ein paar Einträge
+sind Segmentierungsartefakte der Textextraktion (`Ar`, `Be`, `Ent`, `Ge`) — harmlos, da sie nur
+alleinstehende Treffer unterdrücken.
+
+Die Wortliste öffnet kein Loch: sie wirkt nur auf Lexikontreffer **ohne** Stützsignal. Ein Name
+mit Anrede („Frau Bau") oder in der Folge Vorname + Nachname („Anna Bau") wird weiterhin erkannt
+und ersetzt.
+
+**Bekannte Grenze:** Wer tatsächlich `Leiter`, `Kraft` oder `Lage` heisst und ohne Titel und ohne
+Vornamen genannt wird, rutscht durch. Das ist der bewusst bezahlte Preis dafür, dass der Dienst
+auf gewöhnlichem Verwaltungsdeutsch überhaupt benutzbar bleibt.
 
 `Der`, `Die` und `Das` sind tatsächlich Schweizer Nachnamen — deshalb stehen sie in der BfS-Liste.
 Die verbleibenden drei Kollisionen sind sprachlich nicht auflösbar: `Bau`, `Kosten` und `Recht`
