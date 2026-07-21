@@ -128,6 +128,7 @@ class Dienst:
             nachnamen=self._lexika.get("nachnamen"),
             vornamen=self._lexika.get("vornamen"),
             wortliste=self._lexika.get("wortliste"),
+            orte=self._lexika.get("orte"),
         )
 
     def _erkenne(self, adapter, rumpf, kontext):

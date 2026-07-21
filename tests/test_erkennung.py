@@ -112,6 +112,67 @@ def test_wortliste_verhindert_fehlalarme_auf_alltagswoertern():
     assert mit == []
 
 
+def test_anredewort_blockiert_nicht_als_eigener_befund():
+    """Beweist: Das Anredewort selbst erzeugt keinen Befund - "Herr" und "Frau"
+    stehen ebenfalls in der BfS-Nachnamenliste und wuerden sonst jeden Satz mit
+    Anrede blockieren."""
+    befunde, _ = _e(nachnamen={"Herr", "Frau", "Buergi"}).pruefe(
+        "Zustaendig ist Herr Buergi."
+    )
+    assert [b.treffer for b in befunde] == ["Buergi"]
+    assert befunde[0].band == erkennung.BAND_SICHER
+
+
+def test_ortschaft_allein_blockiert_nicht():
+    """Beweist: Eine Schweizer Ortschaft blockiert nicht, auch wenn sie
+    zugleich ein Nachname ist - 359 der 4421 Ortsnamen sind das (Basel, Baden,
+    Arbon, Arosa, Bellinzona, Cham)."""
+    text = "Die Arbeiten in Basel und Arbon laufen; Baden folgt spaeter."
+    ohne, _ = _e(nachnamen={"Basel", "Arbon", "Baden"}).pruefe(text)
+    mit, _ = _e(nachnamen={"Basel", "Arbon", "Baden"},
+                orte={"Basel", "Arbon", "Baden"}).pruefe(text)
+    assert len(ohne) == 3
+    assert mit == []
+
+
+def test_ortschaft_mit_anrede_wird_trotzdem_erkannt():
+    """Beweist: Die Ortschaftenliste oeffnet kein Loch - mit Anrede wird der
+    Name weiterhin erkannt und ersetzt."""
+    befunde, _ = _e(nachnamen={"Basel"}, orte={"Basel"}).pruefe(
+        "Zustaendig ist Frau Basel."
+    )
+    assert [b.treffer for b in befunde] == ["Basel"]
+    assert befunde[0].band == erkennung.BAND_SICHER
+
+
+def test_ortschaft_als_nachname_nach_vorname_wird_erkannt():
+    """Beweist: Auch in der Folge Vorname + Nachname wird ein Name erkannt, der
+    zugleich Ortschaft ist."""
+    befunde, _ = _e(vornamen={"Anna"}, nachnamen={"Basel"}, orte={"Basel"}).pruefe(
+        "Die Leitung liegt bei Anna Basel."
+    )
+    assert [b.treffer for b in befunde] == ["Anna Basel"]
+    assert befunde[0].band == erkennung.BAND_SICHER
+
+
+def test_adresse_wird_mit_plz_und_ort_als_einheit_erkannt():
+    """Beweist: Eine Adresse wird samt PLZ und Ortschaft als EINE Fundstelle
+    erfasst - sonst bliebe nach der Ersetzung "{{P1}}, 3011 Bern" stehen."""
+    text = "Wohnhaft an der Musterstrasse 5, 3011 Bern."
+    ohne, _ = _e().pruefe(text)
+    mit, _ = _e(orte={"Bern"}).pruefe(text)
+    assert ohne[0].treffer == "Musterstrasse 5"
+    assert mit[0].treffer == "Musterstrasse 5, 3011 Bern"
+    assert mit[0].kategorie == erkennung.K_ADRESSE
+
+
+def test_unbekannte_ortschaft_erweitert_die_adresse_nicht():
+    """Beweist: Erweitert wird nur mit einer Ortschaft aus dem amtlichen
+    Verzeichnis - es wird nichts geraten."""
+    befunde, _ = _e(orte={"Bern"}).pruefe("Musterstrasse 5, 9999 Irgendwo.")
+    assert befunde[0].treffer == "Musterstrasse 5"
+
+
 def test_bestandsplatzhalter_erzeugt_keinen_befund():
     """Beweist: Bereits pseudonymisierter Bestand wird durchgereicht und nicht
     als Fundstelle gemeldet."""

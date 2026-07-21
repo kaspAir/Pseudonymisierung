@@ -1,12 +1,28 @@
 # Lexika für Stufe B
 
-| Datei | Inhalt | Herkunft |
-|---|---|---|
-| `nachnamen.txt` | 243'402 Nachnamen | Bundesamt für Statistik (BfS), ständige Wohnbevölkerung, Blatt `CH` |
-| `vornamen.txt` | 66'916 Vornamen | Bundesamt für Statistik (BfS), Blatt `2024` |
-| `wortliste.txt` | **fehlt noch** | siehe unten |
+| Datei | Inhalt | Rolle | Herkunft |
+|---|---|---|---|
+| `nachnamen.txt` | 243'402 | Namenssignal | Bundesamt für Statistik (BfS), ständige Wohnbevölkerung, Blatt `CH` |
+| `vornamen.txt` | 66'916 | Namenssignal | Bundesamt für Statistik (BfS), Blatt `2024` |
+| `ortschaften.txt` | 4'421 | **Gegensignal** + Adresse | Amtliches Ortschaftenverzeichnis (AMTOVZ) |
+| `wortliste.txt` | **fehlt noch** | Gegensignal | siehe unten |
 
-Erzeugt mit `scripts/importiere_namen.py`. Nichts davon ist erfunden.
+Erzeugt mit `scripts/importiere_namen.py` und `scripts/importiere_orte.py`.
+Nichts davon ist erfunden.
+
+## Ortschaften: Gegensignal, kein Ersetzungsgrund
+
+Ortsnamen werden **nicht ersetzt** — dieselbe Überlegung wie bei Organisationen (KONZEPT 1.1):
+eine Ortschaft ist für sich kein Personendatum, und das Modell braucht den fachlichen Kontext
+(„Projekt der Gemeinde Wetzikon"). Sie haben deshalb bewusst keine eigene Ersetzungskategorie.
+
+Ihr Wert liegt woanders: **359 der 4'421 Ortsnamen sind zugleich Nachnamen** — Basel, Baden,
+Arbon, Arosa, Bellinzona, Cham. Ohne diese Liste blockierte jeder Satz, der eine Schweizer
+Gemeinde nennt.
+
+Zweitnutzen: eine Adresse wird samt `PLZ Ortschaft` als **eine** Fundstelle erfasst
+(`Musterstrasse 5, 3011 Bern`), statt nach der Ersetzung `{{P1}}, 3011 Bern` stehen zu lassen.
+Erweitert wird nur mit einer Ortschaft aus dem amtlichen Verzeichnis — geraten wird nichts.
 
 ## Warum `wortliste.txt` nicht optional ist
 
@@ -20,7 +36,13 @@ Gemessen an einem HERMES-nahen Probetext (48 verschiedene grossgeschriebene Wör
 | Volle BfS-Listen, ohne Regeln | **16** | u.a. `Der`, `Die`, `Das`, `Kosten`, `Recht`, `Bau` |
 | + Satzanfang zählt nicht als Signal | 7 | `Der`/`Die`/`Das` weg |
 | + weicher Zeilenumbruch ≠ Satzanfang | **3** | es bleiben `Bau`, `Kosten`, `Recht` |
+| + `ortschaften.txt`, + Anredewort gesperrt | 3 | `Basel`/`Arbon`/`Baden` und `Herr` kämen sonst dazu |
 | + gepflegte `wortliste.txt` | erwartet 0 | **noch nicht belegt** |
+
+An einem längeren Probetext mit Namen, Adresse und Ortschaften erkennt der Dienst heute
+richtig: `Herr Bürgi` (Anrede), `Anna Meier` (Vorname + Nachname), E-Mail, Telefon,
+`Musterstrasse 5, 3011 Bern` (Adresse als Einheit) — und blockiert korrekt bei
+`Projektleitung: Steiner`. Fälschlich blockieren noch `Kosten`, `Recht`, `Bau`, `Sitz`.
 
 `Der`, `Die` und `Das` sind tatsächlich Schweizer Nachnamen — deshalb stehen sie in der BfS-Liste.
 Die verbleibenden drei Kollisionen sind sprachlich nicht auflösbar: `Bau`, `Kosten` und `Recht`

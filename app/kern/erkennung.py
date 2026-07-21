@@ -78,6 +78,10 @@ _RE_ADRESSE = re.compile(
     re.IGNORECASE,
 )
 
+# Was unmittelbar auf eine Strassenangabe folgen darf, damit die Adresse als
+# EINE Einheit ersetzt wird statt "{{P1}}, 3011 Bern" stehen zu lassen.
+_RE_PLZ_ORT = re.compile(r"\s*,?\s*(\d{4})\s+([A-ZÄÖÜ][\wäöüéèàç-]+(?:[ -][A-ZÄÖÜ][\wäöüéèàç-]+)?)")
+
 
 def _ahv_gueltig(roh):
     """EAN-13-Pruefziffer der 13-stelligen AHV-Nummer."""
@@ -178,18 +182,22 @@ class Erkenner:
     """
 
     def __init__(self, listen=None, zusatzmuster=None, namenslexikon=None,
-                 nachnamen=None, vornamen=None, wortliste=None):
+                 nachnamen=None, vornamen=None, wortliste=None, orte=None):
         self._listen = listen
         self._zusatz = list(zusatzmuster or [])
         # namenslexikon bleibt als einfache Form bestehen und zaehlt als
         # Nachnamenliste.
         self._nachnamen = _menge(nachnamen) | _menge(namenslexikon)
         self._vornamen = _menge(vornamen)
-        # Alltagswortschatz: Woerter, die zwar als Nachname vorkommen, aber im
-        # laufenden Text praktisch nie eine Person meinen ("Kosten", "Recht",
-        # "Bau", "Der"). Ohne diese Liste erzeugen die vollen BfS-Listen so
-        # viele Fehlalarme, dass der Dienst unbenutzbar wird.
-        self._wortliste = _menge(wortliste)
+        self._orte = _menge(orte)
+        # Was fuer sich genommen KEINE Person meint:
+        #  - Alltagswortschatz ("Kosten", "Recht", "Bau", "Der")
+        #  - Schweizer Ortschaften; 359 davon sind zugleich Nachnamen
+        #    (Basel, Baden, Arbon, Arosa, Bellinzona, Cham ...)
+        # Beides unterdrueckt NUR den alleinstehenden Lexikontreffer. Mit
+        # Anrede ("Frau Basel") oder als Vorname+Nachname ("Anna Basel") wird
+        # weiterhin erkannt und ersetzt - es entsteht also kein Loch.
+        self._nicht_person = _menge(wortliste) | self._orte
 
     def pruefe(self, text, feld=None):
         """Liefert (befunde, bestandsstellen)."""
@@ -208,15 +216,19 @@ class Erkenner:
         # Stufe A
         for regex, kategorie, pruefer, grund in _STUFE_A:
             for m in regex.finditer(text):
-                if not _frei(m.start(), m.end()):
-                    continue
+                anfang, ende = m.start(), m.end()
                 if pruefer and not pruefer(m.group(0)):
                     continue
-                if self._freigegeben(m.group(0), kategorie):
+                if kategorie == K_ADRESSE:
+                    ende, grund = self._adresse_erweitern(text, ende, grund)
+                if not _frei(anfang, ende):
                     continue
-                belegt.append((m.start(), m.end()))
+                treffer = text[anfang:ende]
+                if self._freigegeben(treffer, kategorie):
+                    continue
+                belegt.append((anfang, ende))
                 befunde.append(
-                    Befund(kategorie, m.group(0), m.start(), m.end(), 0.99,
+                    Befund(kategorie, treffer, anfang, ende, 0.99,
                            BAND_SICHER, grund, feld)
                 )
 
@@ -239,7 +251,10 @@ class Erkenner:
             a, b = m.start(1), m.end(1)
             if not _frei(a, b) or self._freigegeben(name, K_PERSON_NAME):
                 continue
-            belegt.append((a, b))
+            # Die ganze Fundstelle sperren, nicht nur den Namen: das Anredewort
+            # selbst ist teils ebenfalls ein Nachname ("Herr", "Frau" stehen in
+            # der BfS-Liste) und wuerde sonst als eigener Befund blockieren.
+            belegt.append((m.start(), m.end()))
             befunde.append(
                 Befund(K_PERSON_NAME, name, a, b, 0.93, BAND_SICHER,
                        "erkannt_kontextanker_anrede", feld)
@@ -296,8 +311,8 @@ class Erkenner:
             if self._freigegeben(wort, K_PERSON_NAME):
                 continue
 
-            # Alltagswort: als Name unbrauchbar, egal wo es steht.
-            if klein in self._wortliste:
+            # Alltagswort oder Ortschaft: allein genommen keine Person.
+            if klein in self._nicht_person:
                 continue
 
             # Am Satzanfang ist Grossschreibung erzwungen und damit kein
@@ -315,6 +330,23 @@ class Erkenner:
 
         befunde.sort(key=lambda b: b.von)
         return befunde, bestand
+
+    def _adresse_erweitern(self, text, ende, grund):
+        """Zieht ein unmittelbar folgendes "PLZ Ortschaft" in die Adresse.
+
+        Sonst bliebe nach der Ersetzung "{{P1}}, 3011 Bern" stehen - die
+        Adresse waere zerrissen und der Rest lesbar. Erweitert wird nur, wenn
+        die Ortschaft im amtlichen Verzeichnis steht; ohne Verzeichnis bleibt
+        es bei der Strassenangabe.
+        """
+        if not self._orte:
+            return ende, grund
+        m = _RE_PLZ_ORT.match(text, ende)
+        if not m:
+            return ende, grund
+        if m.group(2).casefold() not in self._orte:
+            return ende, grund
+        return m.end(), grund + "; plz_ortschaft_amtlich"
 
     # -- Listen ---------------------------------------------------------
 

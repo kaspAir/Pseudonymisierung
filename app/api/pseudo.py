@@ -21,6 +21,7 @@ def health():
             "nachnamen": len(lexika.get("nachnamen") or ()),
             "vornamen": len(lexika.get("vornamen") or ()),
             "wortliste": len(lexika.get("wortliste") or ()),
+            "ortschaften": len(lexika.get("orte") or ()),
         },
         # Ohne Wortliste blockiert der Dienst auf gewoehnlichem
         # Verwaltungsdeutsch. Die Luecke wird ausgewiesen, nicht verschwiegen.
