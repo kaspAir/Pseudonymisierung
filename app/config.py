@@ -41,6 +41,13 @@ class Config:
         # Zielhost noch nicht gemessen, siehe KONZEPT 8.3).
         self.ner_modell = os.environ.get("PSEUDO_NER_MODELL", "").strip()
 
+        # Verzeichnis mit nachnamen.txt / vornamen.txt / wortliste.txt.
+        self.lexikon_verzeichnis = os.environ.get(
+            "PSEUDO_LEXIKON",
+            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                         "lexikon"),
+        )
+
     @property
     def ist_produktion(self):
         """Nur in dieser Umgebung darf niemals eine Ausnahme aktiv werden."""

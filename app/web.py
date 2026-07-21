@@ -17,42 +17,59 @@ from .tresor import Tresor
 from .weiterleitung import echte_weiterleitung
 
 
-def lade_namenslexikon(pfad):
-    """Laedt das Namenslexikon fuer Stufe B.
-
-    Die Datei wird BEWUSST nicht mit erfundenen Namen ausgeliefert. Ohne
-    gepflegte Quelle bleibt sie leer - dann erkennt Stufe B nur Namen MIT
-    Anrede-Anker. Das ist eine ehrliche Luecke und kein stiller Ausfall:
-    /pseudo/v1/health weist die Zahl der Eintraege aus.
-    """
+def _lies_liste(pfad):
     if not pfad or not os.path.exists(pfad):
         return set()
-    namen = set()
+    werte = set()
     with open(pfad, "r", encoding="utf-8") as f:
         for zeile in f:
             zeile = zeile.strip()
             if zeile and not zeile.startswith("#"):
-                namen.add(zeile)
-    return namen
+                werte.add(zeile)
+    return werte
+
+
+def lade_lexika(verzeichnis):
+    """Laedt Nachnamen, Vornamen und den Alltagswortschatz.
+
+    Nachnamen und Vornamen stammen aus den offenen Daten des Bundesamts fuer
+    Statistik (siehe scripts/importiere_namen.py). Nichts davon ist erfunden.
+
+    Die WORTLISTE ist der Gegenspieler: Woerter, die zwar als Nachname
+    vorkommen, im laufenden Text aber praktisch nie eine Person meinen -
+    "Kosten", "Recht", "Bau". Fehlt sie, blockiert der Dienst auf gewoehnlichem
+    Verwaltungsdeutsch. /pseudo/v1/health weist alle drei Zahlen aus, damit die
+    Luecke sichtbar bleibt.
+    """
+    verzeichnis = verzeichnis or ""
+    return {
+        "nachnamen": _lies_liste(os.path.join(verzeichnis, "nachnamen.txt")),
+        "vornamen": _lies_liste(os.path.join(verzeichnis, "vornamen.txt")),
+        "wortliste": _lies_liste(os.path.join(verzeichnis, "wortliste.txt")),
+    }
 
 
 def erzeuge_app(config=None, sitzungsfabrik=None, weiterleiter=None, tresor=None,
-                namenslexikon=None):
+                namenslexikon=None, lexika=None):
     app = Flask(__name__)
     config = config or Config()
 
     if sitzungsfabrik is None:
         _, sitzungsfabrik = richte_ein(config.datenbank_url)
 
+    if lexika is None:
+        if namenslexikon is not None:
+            # Einfache Form: eine Liste, als Nachnamen gewertet.
+            lexika = {"nachnamen": set(namenslexikon), "vornamen": set(),
+                      "wortliste": set()}
+        else:
+            lexika = lade_lexika(config.lexikon_verzeichnis)
+
     app.extensions["pseudo"] = {
         "config": config,
         "tresor": tresor or Tresor(config.tresor_schluessel),
         "weiterleiter": weiterleiter or echte_weiterleitung(),
-        "namenslexikon": (
-            namenslexikon
-            if namenslexikon is not None
-            else lade_namenslexikon(os.environ.get("PSEUDO_NAMENSLEXIKON"))
-        ),
+        "lexika": lexika,
         "version": __version__,
         "sitzungsfabrik": sitzungsfabrik,
     }

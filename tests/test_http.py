@@ -72,13 +72,14 @@ def welt():
 
 
 def test_health_weist_die_luecke_aus(welt):
-    """Beweist: Der Dienst gibt offen an, ob Stufe C aktiv ist und wie gross
-    das Namenslexikon ist - eine Erkennungsluecke bleibt sichtbar."""
+    """Beweist: Der Dienst weist seine Erkennungsluecken offen aus - Stufe C,
+    Lexikongroessen und die fehlende Wortliste."""
     _, klient, _, _, _ = welt
     d = klient.get("/pseudo/v1/health").get_json()
     assert d["umgebung"] == "develop"
     assert d["stufe_c_aktiv"] is False
-    assert d["namenslexikon_eintraege"] == len(LEXIKON)
+    assert d["lexikon"]["nachnamen"] == len(LEXIKON)
+    assert d["wortliste_fehlt"] is True
 
 
 def test_blockierter_aufruf_verlaesst_das_haus_nicht(welt):

@@ -12,11 +12,19 @@ blueprint = Blueprint("pseudo", __name__)
 @blueprint.get("/health")
 def health():
     umgebung = current_app.extensions["pseudo"]
+    lexika = umgebung["lexika"]
     return jsonify({
         "status": "bereit",
         "umgebung": umgebung["config"].umgebung,
         "version": umgebung["version"],
-        "namenslexikon_eintraege": len(umgebung["namenslexikon"]),
+        "lexikon": {
+            "nachnamen": len(lexika.get("nachnamen") or ()),
+            "vornamen": len(lexika.get("vornamen") or ()),
+            "wortliste": len(lexika.get("wortliste") or ()),
+        },
+        # Ohne Wortliste blockiert der Dienst auf gewoehnlichem
+        # Verwaltungsdeutsch. Die Luecke wird ausgewiesen, nicht verschwiegen.
+        "wortliste_fehlt": not (lexika.get("wortliste") or ()),
         "stufe_c_aktiv": bool(umgebung["config"].ner_modell),
     })
 

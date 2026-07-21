@@ -47,12 +47,12 @@ class Dienst:
     Ablauf ohne Netzzugriff belegen koennen.
     """
 
-    def __init__(self, sitzung, config, tresor, weiterleiter, namenslexikon=None):
+    def __init__(self, sitzung, config, tresor, weiterleiter, lexika=None):
         self._s = sitzung
         self._c = config
         self._t = tresor
         self._weiterleiten = weiterleiter
-        self._lexikon = set(namenslexikon or ())
+        self._lexika = lexika or {}
 
     # -- oeffentlich ----------------------------------------------------
 
@@ -123,7 +123,11 @@ class Dienst:
             .all()
         ]
         return erkennung.Erkenner(
-            listen=aufgeloest, zusatzmuster=muster, namenslexikon=self._lexikon
+            listen=aufgeloest,
+            zusatzmuster=muster,
+            nachnamen=self._lexika.get("nachnamen"),
+            vornamen=self._lexika.get("vornamen"),
+            wortliste=self._lexika.get("wortliste"),
         )
 
     def _erkenne(self, adapter, rumpf, kontext):

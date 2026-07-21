@@ -53,6 +53,65 @@ def test_mandantenspezifisches_nummernmuster():
     assert befunde[0].band == erkennung.BAND_SICHER
 
 
+def test_satzanfang_allein_blockiert_nicht():
+    """Beweist: Am Satzanfang ist Grossschreibung erzwungen und taugt nicht als
+    Namenssignal - "Der", "Die", "Das" sind zwar Schweizer Nachnamen, duerfen
+    aber nicht jeden Satz blockieren."""
+    lexikon = {"Der", "Die", "Das"}
+    befunde, _ = _e(nachnamen=lexikon).pruefe(
+        "Der Auftrag ist erteilt. Die Studie folgt. Das Vorgehen steht fest."
+    )
+    assert befunde == []
+
+
+def test_nach_doppelpunkt_zaehlt_grossschreibung_als_signal():
+    """Beweist: Nach einem Doppelpunkt geht es im Deutschen klein weiter - ein
+    grosses Wort ist dort also ein Signal. Genau dort stehen in
+    Projektdokumenten die Namen."""
+    befunde, _ = _e(nachnamen={"Steiner"}).pruefe("Projektleitung: Steiner")
+    assert [b.treffer for b in befunde] == ["Steiner"]
+    assert befunde[0].band == erkennung.BAND_UNSICHER
+
+
+def test_weicher_zeilenumbruch_ist_kein_satzanfang():
+    """Beweist: Ein Umbruch mitten im Satz zaehlt nicht als Satzanfang - sonst
+    verloere umbrochener Text halbe Saetze."""
+    befunde, _ = _e(nachnamen={"Steiner"}).pruefe(
+        "Die Leitung liegt bei\nSteiner und dem Team."
+    )
+    assert [b.treffer for b in befunde] == ["Steiner"]
+
+
+def test_absatzwechsel_zaehlt_als_satzanfang():
+    """Beweist: Eine Leerzeile trennt Absaetze - dort ist Grossschreibung
+    wieder erzwungen."""
+    befunde, _ = _e(nachnamen={"Der"}).pruefe("Erster Absatz.\n\nDer zweite folgt.")
+    assert befunde == []
+
+
+def test_vorname_und_nachname_nebeneinander_sind_sicher():
+    """Beweist: Zwei benachbarte Lexikontreffer in der Rollenfolge Vorname +
+    Nachname sind das staerkste Signal ohne Anrede - sie blockieren nicht,
+    sondern werden ersetzt."""
+    befunde, _ = _e(vornamen={"Marc"}, nachnamen={"Buergi"}).pruefe(
+        "Die Leitung liegt bei Marc Buergi und dem Team."
+    )
+    assert [b.treffer for b in befunde] == ["Marc Buergi"]
+    assert befunde[0].band == erkennung.BAND_SICHER
+
+
+def test_wortliste_verhindert_fehlalarme_auf_alltagswoertern():
+    """Beweist: Ein Wort im Alltagswortschatz erzeugt keinen Befund, auch wenn
+    es als Nachname vorkommt - "Kosten", "Recht" und "Bau" sind in der Schweiz
+    Nachnamen und wuerden sonst jedes HERMES-Dokument blockieren."""
+    text = "Der Bericht nennt die Kosten, das Recht und den Bau der Anlage."
+    ohne, _ = _e(nachnamen={"Kosten", "Recht", "Bau"}).pruefe(text)
+    mit, _ = _e(nachnamen={"Kosten", "Recht", "Bau"},
+                wortliste={"Kosten", "Recht", "Bau"}).pruefe(text)
+    assert len(ohne) == 3
+    assert mit == []
+
+
 def test_bestandsplatzhalter_erzeugt_keinen_befund():
     """Beweist: Bereits pseudonymisierter Bestand wird durchgereicht und nicht
     als Fundstelle gemeldet."""

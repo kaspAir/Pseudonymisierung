@@ -33,7 +33,7 @@ def weiterleiten(anbieter, rest):
         config=umgebung["config"],
         tresor=umgebung["tresor"],
         weiterleiter=umgebung["weiterleiter"],
-        namenslexikon=umgebung["namenslexikon"],
+        lexika=umgebung["lexika"],
     )
 
     try:

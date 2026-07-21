@@ -36,6 +36,10 @@ K_BENUTZERKONTO = "benutzerkonto"
 K_BEREITS = "bereits_pseudonymisiert"
 
 
+def _menge(werte):
+    return set(w.casefold() for w in (werte or ()))
+
+
 class Befund:
     def __init__(self, kategorie, treffer, von, bis, sicherheit, band, grund, feld=None):
         self.kategorie = kategorie
@@ -125,6 +129,42 @@ _RE_ANKER_NAME = re.compile(
     r"(?:%s)\s+([A-ZÄÖÜ][\wäöüéèà-]{1,}(?:\s+[A-ZÄÖÜ][\wäöüéèà-]{1,})?)" % _ANKER
 )
 
+# Jedes grossgeschriebene Wort. Im Deutschen ist das FAST KEIN Namenssignal:
+# alle Substantive und jedes Satzanfangswort sind gross. Gemessen an einem
+# HERMES-nahen Probetext trafen 12% der verschiedenen grossgeschriebenen
+# Woerter die BfS-Nachnamenliste - darunter "Der", "Die", "Das" (es gibt in
+# der Schweiz Personen dieses Nachnamens) sowie "Kosten", "Recht", "Bau".
+_RE_WORT = re.compile(r"\b[A-ZÄÖÜ][\wäöüéèàáâêîôûëïüç-]{1,}\b")
+
+# Nur diese Zeichen erzwingen im Deutschen Grossschreibung; danach ist sie als
+# Namenssignal wertlos.
+#
+# Bewusst NICHT enthalten: Doppelpunkt, Strichpunkt, Zeilenumbruch und
+# Aufzaehlungszeichen. Nach ihnen geht es im Deutschen klein weiter - ein
+# grosses Wort ist dort also sehr wohl ein Signal. Genau dort stehen in
+# Projektdokumenten die Namen: "Projektleitung: Steiner", "- Steiner, Anna".
+_SATZENDE = set(".!?")
+
+
+def _ist_satzanfang(text, pos):
+    """Steht das Wort an einer Stelle, an der Grossschreibung erzwungen ist?
+
+    Ein WEICHER Zeilenumbruch (Umbruch mitten im Satz) zaehlt nicht - sonst
+    gaelte in umbrochenem Text jedes Zeilenanfangswort als erzwungen und die
+    Erkennung verloere halbe Saetze. Ein Absatz (Leerzeile) zaehlt.
+    """
+    i = pos - 1
+    umbrueche = 0
+    while i >= 0 and text[i] in " \t\r\n-–—\"'«»([":
+        if text[i] == "\n":
+            umbrueche += 1
+            if umbrueche >= 2:
+                return True          # Absatzwechsel
+        i -= 1
+    if i < 0:
+        return True                  # Textanfang
+    return text[i] in _SATZENDE
+
 
 class Erkenner:
     """Fuehrt die Erkennung fuer einen Mandanten durch.
@@ -137,10 +177,19 @@ class Erkenner:
     namenslexikon: Menge bekannter Vor-/Nachnamen (kann leer sein)
     """
 
-    def __init__(self, listen=None, zusatzmuster=None, namenslexikon=None):
+    def __init__(self, listen=None, zusatzmuster=None, namenslexikon=None,
+                 nachnamen=None, vornamen=None, wortliste=None):
         self._listen = listen
         self._zusatz = list(zusatzmuster or [])
-        self._namen = set(n.casefold() for n in (namenslexikon or ()))
+        # namenslexikon bleibt als einfache Form bestehen und zaehlt als
+        # Nachnamenliste.
+        self._nachnamen = _menge(nachnamen) | _menge(namenslexikon)
+        self._vornamen = _menge(vornamen)
+        # Alltagswortschatz: Woerter, die zwar als Nachname vorkommen, aber im
+        # laufenden Text praktisch nie eine Person meinen ("Kosten", "Recht",
+        # "Bau", "Der"). Ohne diese Liste erzeugen die vollen BfS-Listen so
+        # viele Fehlalarme, dass der Dienst unbenutzbar wird.
+        self._wortliste = _menge(wortliste)
 
     def pruefe(self, text, feld=None):
         """Liefert (befunde, bestandsstellen)."""
@@ -196,29 +245,73 @@ class Erkenner:
                        "erkannt_kontextanker_anrede", feld)
             )
 
-        # Stufe B: Lexikontreffer OHNE Anker -> unsicher, blockiert
-        if self._namen:
-            for m in re.finditer(r"\b[A-ZÄÖÜ][\wäöüéèà-]{1,}\b", text):
-                wort = m.group(0)
-                if not _frei(m.start(), m.end()):
+        # Stufe B2: Vorname unmittelbar vor Nachname -> sicher.
+        # Das ist das staerkste Signal ohne Anrede: zwei benachbarte
+        # Lexikontreffer in genau dieser Rollenfolge.
+        woerter = [m for m in _RE_WORT.finditer(text)]
+        uebersprungen = set()
+        if self._vornamen and self._nachnamen:
+            for i in range(len(woerter) - 1):
+                links, rechts = woerter[i], woerter[i + 1]
+                if text[links.end():rechts.start()].strip():
+                    continue          # nicht unmittelbar benachbart
+                if links.group(0).casefold() not in self._vornamen:
                     continue
-                if wort.casefold() not in self._namen:
+                if rechts.group(0).casefold() not in self._nachnamen:
                     continue
-                if self._gesperrt(wort, K_PERSON_NAME):
-                    belegt.append((m.start(), m.end()))
-                    befunde.append(
-                        Befund(K_PERSON_NAME, wort, m.start(), m.end(), 0.99,
-                               BAND_SICHER, "gesperrt_durch_mandantenliste", feld)
-                    )
+                voll = text[links.start():rechts.end()]
+                if not _frei(links.start(), rechts.end()) \
+                        or self._freigegeben(voll, K_PERSON_NAME):
                     continue
-                if self._freigegeben(wort, K_PERSON_NAME):
-                    continue
+                belegt.append((links.start(), rechts.end()))
+                uebersprungen.update({i, i + 1})
+                befunde.append(
+                    Befund(K_PERSON_NAME, voll, links.start(), rechts.end(), 0.95,
+                           BAND_SICHER, "erkannt_vorname_und_nachname", feld)
+                )
+
+        # Stufe B3: einzelner Lexikontreffer -> unsicher, blockiert.
+        for i, m in enumerate(woerter):
+            if i in uebersprungen:
+                continue
+            wort = m.group(0)
+            klein = wort.casefold()
+            if not _frei(m.start(), m.end()):
+                continue
+
+            ist_nachname = klein in self._nachnamen
+            ist_vorname = klein in self._vornamen
+            if not (ist_nachname or ist_vorname):
+                continue
+
+            # Eine ausdrueckliche Sperre des Mandanten geht allem vor.
+            if self._gesperrt(wort, K_PERSON_NAME):
                 belegt.append((m.start(), m.end()))
                 befunde.append(
-                    Befund(K_PERSON_NAME, wort, m.start(), m.end(), 0.61,
-                           BAND_UNSICHER,
-                           "erkannt_lexikon_nachname; kein_kontextanker_anrede", feld)
+                    Befund(K_PERSON_NAME, wort, m.start(), m.end(), 0.99,
+                           BAND_SICHER, "gesperrt_durch_mandantenliste", feld)
                 )
+                continue
+
+            if self._freigegeben(wort, K_PERSON_NAME):
+                continue
+
+            # Alltagswort: als Name unbrauchbar, egal wo es steht.
+            if klein in self._wortliste:
+                continue
+
+            # Am Satzanfang ist Grossschreibung erzwungen und damit kein
+            # Namenssignal. Ohne weiteres Signal wird hier nicht blockiert.
+            if _ist_satzanfang(text, m.start()):
+                continue
+
+            belegt.append((m.start(), m.end()))
+            befunde.append(
+                Befund(K_PERSON_NAME, wort, m.start(), m.end(), 0.61,
+                       BAND_UNSICHER,
+                       "erkannt_lexikon_%s; kein_kontextanker_anrede"
+                       % ("nachname" if ist_nachname else "vorname"), feld)
+            )
 
         befunde.sort(key=lambda b: b.von)
         return befunde, bestand
