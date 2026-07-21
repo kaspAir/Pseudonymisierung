@@ -9,26 +9,35 @@ Konzentration von Schlüsseltresor und Zuordnungstabelle überhaupt rechtfertige
 
 ---
 
-## 1. Anmelden und Repo holen
+## Verzeichnisse je Stufe
+
+| Stufe | Zweig | Port | Repo | virtuelle Umgebung |
+|---|---|---|---|---|
+| develop | `develop` | 8030 | `~/pseudonymisierung-dev` | `~/venv-pseudonymisierung-dev` |
+| test | `test` | 8031 | `~/pseudonymisierung-test` | `~/venv-pseudonymisierung-test` |
+| integration | `integration` | 8032 | `~/pseudonymisierung-int` | `~/venv-pseudonymisierung-int` |
+| main | `main` | 8033 | `~/pseudonymisierung-prod` | `~/venv-pseudonymisierung-prod` |
+
+**Eine virtuelle Umgebung je Stufe** — bewusst anders als bei den übrigen Anwendungen, die sich
+eine teilen. Sonst ändert ein Abhängigkeits-Wechsel auf `develop` still auch die Produktion.
+
+Alles Weitere erledigt `deploy/pseudo_ctl.sh`; von Hand sind nur Schritt 1 und 2 nötig.
+
+## 1. Repo holen und Schlüsselmaterial erzeugen
 
 ```bash
 ssh u7031y_kaspar@83.228.238.194
 
 cd $HOME
-git clone https://github.com/kaspAir/Pseudonymisierung.git
-cd Pseudonymisierung
-git checkout develop
-```
+git clone https://github.com/kaspAir/Pseudonymisierung.git pseudonymisierung-dev
+cd pseudonymisierung-dev && git checkout develop
 
-## 2. Virtuelle Umgebung
+python3 -V                                          # erwartet: Python 3.9.2
+python3 -m venv $HOME/venv-pseudonymisierung-dev
+$HOME/venv-pseudonymisierung-dev/bin/pip install --upgrade pip -q
+$HOME/venv-pseudonymisierung-dev/bin/pip install -r requirements.txt
 
-Eigene Umgebung, getrennt von der bestehenden `$HOME/venv`:
-
-```bash
-python3 -V                                   # erwartet: Python 3.9.2
-python3 -m venv $HOME/venv-pseudonymisierung
-$HOME/venv-pseudonymisierung/bin/pip install --upgrade pip
-$HOME/venv-pseudonymisierung/bin/pip install -r requirements.txt
+$HOME/venv-pseudonymisierung-dev/bin/python scripts/einrichten.py --tresor-erzeugen
 ```
 
 Die Pins sind gegen Python 3.9 geprüft: `Flask 3.0.3` (`>=3.8`),
@@ -36,21 +45,18 @@ Die Pins sind gegen Python 3.9 geprüft: `Flask 3.0.3` (`>=3.8`),
 `requirements-werkzeuge.txt` wird auf dem Host **nicht** gebraucht — das sind die Skripte für
 die Bestandsaufbereitung.
 
-## 3. Schlüsselmaterial erzeugen
+## 2. `.env` anlegen
 
 ```bash
-$HOME/venv-pseudonymisierung/bin/python scripts/einrichten.py --tresor-erzeugen
-```
-
-Gibt eine Zeile aus. Diese kommt in die `.env`:
-
-```bash
-cat > $HOME/Pseudonymisierung/.env <<'ENDE'
+cat > $HOME/pseudonymisierung-dev/.env <<'ENDE'
 PSEUDO_UMGEBUNG=develop
 PSEUDO_TRESOR_SCHLUESSEL=<hier die erzeugte Zeile einsetzen>
 ENDE
-chmod 600 $HOME/Pseudonymisierung/.env
+chmod 600 $HOME/pseudonymisierung-dev/.env
 ```
+
+Die `.env` liegt **ausserhalb** von git (`.gitignore`) und überlebt jedes `git reset --hard`
+des Deploys.
 
 > **Geht dieser Wert verloren, sind alle gespeicherten Zuordnungen und Anbieterschlüssel
 > unlesbar.** Es gibt bewusst keine Hintertür. Sichere ihn dort, wo du auch andere Zugangsdaten
@@ -59,18 +65,18 @@ chmod 600 $HOME/Pseudonymisierung/.env
 Ohne diesen Wert startet der Dienst **nicht**. Ein stiller Rückfall auf Klartextspeicherung wäre
 der schlimmste denkbare Ausgang, weil ihn niemand bemerkt.
 
-## 4. Anwendung registrieren und Anbieterschlüssel hinterlegen
+## 3. Anwendung registrieren und Anbieterschlüssel hinterlegen
 
 Der Schlüssel wird aus einer **Umgebungsvariablen** gelesen, nicht als Argument übergeben —
 sonst stünde er in der Shell-Historie und in der Prozessliste.
 
 ```bash
-cd $HOME/Pseudonymisierung
+cd $HOME/pseudonymisierung-dev
 set -a; . ./.env; set +a
 
 read -s -p "Anthropic-Key: " ANTHROPIC_API_KEY; export ANTHROPIC_API_KEY; echo
 
-$HOME/venv-pseudonymisierung/bin/python scripts/einrichten.py \
+$HOME/venv-pseudonymisierung-dev/bin/python scripts/einrichten.py \
     --anwendung hermes-pia --bezeichnung "HERMES PIA" \
     --anbieter anthropic --aus ANTHROPIC_API_KEY
 
@@ -80,20 +86,23 @@ unset ANTHROPIC_API_KEY
 Prüfen (gibt niemals Schlüsselwerte aus):
 
 ```bash
-$HOME/venv-pseudonymisierung/bin/python scripts/einrichten.py --zeigen
+$HOME/venv-pseudonymisierung-dev/bin/python scripts/einrichten.py --zeigen
 ```
 
-## 5. Starten
+## 4. Starten
+
+Ab hier übernimmt das Steuerskript — es ist zugleich das, was Jenkins aufruft:
 
 ```bash
-chmod +x deploy/start.sh deploy/stop.sh
-./deploy/start.sh
+bash deploy/pseudo_ctl.sh start develop
+bash deploy/pseudo_ctl.sh health develop
 ```
 
-Prüfen:
+Der Wachhund (Cron alle 2 Minuten) wird beim ersten Jenkins-Deploy automatisch eingerichtet.
+Von Hand:
 
 ```bash
-curl -s http://127.0.0.1:8030/pseudo/v1/health
+bash deploy/pseudo_ctl.sh deploy develop
 ```
 
 Erwartete Antwort — die Lexikonzahlen sind der Beleg, dass die Erkennung wirklich geladen ist:
@@ -106,21 +115,20 @@ Erwartete Antwort — die Lexikonzahlen sind der Beleg, dass die Erkennung wirkl
 
 Stehen dort Nullen, fehlt das Verzeichnis `lexikon/` — dann ist die Erkennung praktisch blind.
 
-## 6. Wachhund einrichten
+## 5. Jenkins
 
-Wie bei den übrigen Anwendungen, da es kein systemd gibt:
+Die vier Jobs (dev/test/int/prod) verwenden **dasselbe** `Jenkinsfile`; die Stufe wird aus dem
+ausgecheckten Zweig abgeleitet, nicht aus dem Jobnamen. Je Job nur der Branch Specifier:
+`*/develop`, `*/test`, `*/integration`, `*/main`.
 
-```bash
-crontab -e
-```
+Nötig sind nur das SSH-Credential `hermespia-deploy` und Docker auf dem Agenten — beides ist für
+die übrigen Produkte bereits eingerichtet.
 
-```
-*/5 * * * * $HOME/Pseudonymisierung/deploy/start.sh >/dev/null 2>&1
-```
+Getestet wird im Container `python:3.9-slim`, also auf der **Python-Version des Zielhosts**.
+Das ist bewusst anders als bei HERMES PIA (dort `3.12-slim`): eine Unverträglichkeit mit 3.9
+soll die Pipeline melden und nicht erst der Deploy.
 
-Startet den Dienst nur, wenn er nicht läuft.
-
-## 7. Rauchtest über den ganzen Weg
+## 6. Rauchtest über den ganzen Weg
 
 Erst wenn HERMES PIA angebunden ist (siehe `ANBINDUNG.md`), sonst von Hand:
 
@@ -165,8 +173,8 @@ Rückersetzung über den ganzen Weg.
 - **`Authorization` wird noch nicht geprüft.** Der Dienst verlässt sich allein darauf, dass er
   nur über `127.0.0.1` erreichbar ist. Jeder lokale Prozess auf dem Host könnte ihn nutzen.
   Für `develop` vertretbar; vor `main` zu schliessen.
-- **Kein Jenkins-Job.** Die Erstinstallation ist von Hand; die Promotion
-  `develop → test → integration → main` braucht noch einen Job wie bei den übrigen Produkten.
+- **Promotion sequenziell**, wie bei den übrigen Produkten: `develop → test → integration → main`.
+  Keine Stufe überspringen — auch nicht, wenn der Code identisch ist.
 - **Sicherung:** `data/pseudonymisierung-develop.db` enthält die Zuordnungstabelle. Sie gehört
   in dieselbe Sicherung wie die übrigen Datenbanken — und der Tresor-Schlüssel **getrennt**
   davon, sonst hebt die Sicherung die Verschlüsselung auf.
