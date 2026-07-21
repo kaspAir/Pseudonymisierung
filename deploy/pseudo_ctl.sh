@@ -170,10 +170,12 @@ deploye() {
     git reset --hard "origin/$ZWEIG" || return 1
     melde "Stand: $(git rev-parse --short HEAD) auf $ZWEIG"
 
-    if [ ! -x "$VENV/bin/python" ]; then
+    if [ ! -x "$VENV/bin/pip" ]; then
         melde "erzeuge virtuelle Umgebung: $VENV"
-        python3 -m venv "$VENV" || return 1
-        "$VENV/bin/pip" install --upgrade pip -q || true
+        # NICHT blank "python3 -m venv": auf diesem Host fehlt das Paket
+        # python3-venv, dann entsteht eine Umgebung OHNE pip und alles
+        # Weitere scheitert erst spaeter und unverstaendlich.
+        bash "$REPO/deploy/venv_erzeugen.sh" "$VENV" || return 1
     fi
     "$VENV/bin/pip" install -r requirements.txt -q || return 1
 

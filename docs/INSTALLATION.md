@@ -33,12 +33,18 @@ git clone https://github.com/kaspAir/Pseudonymisierung.git pseudonymisierung-dev
 cd pseudonymisierung-dev && git checkout develop
 
 python3 -V                                          # erwartet: Python 3.9.2
-python3 -m venv $HOME/venv-pseudonymisierung-dev
-$HOME/venv-pseudonymisierung-dev/bin/pip install --upgrade pip -q
+bash deploy/venv_erzeugen.sh $HOME/venv-pseudonymisierung-dev
 $HOME/venv-pseudonymisierung-dev/bin/pip install -r requirements.txt
 
 $HOME/venv-pseudonymisierung-dev/bin/python scripts/einrichten.py --tresor-erzeugen
 ```
+
+> **Warum nicht einfach `python3 -m venv`?** Auf diesem Host fehlt das Paket `python3-venv`, und
+> ohne Root lässt es sich nicht nachinstallieren. `python3 -m venv` bricht dann ab mit
+> *„ensurepip is not available"* — und alles Weitere scheitert als Folgefehler an einem
+> fehlenden `pip`. `deploy/venv_erzeugen.sh` erzeugt die Umgebung stattdessen **ohne** pip und
+> reicht pip anschliessend nach; es probiert mehrere Wege durch und meldet klar, wenn keiner
+> greift.
 
 Die Pins sind gegen Python 3.9 geprüft: `Flask 3.0.3` (`>=3.8`),
 `cryptography 43.0.3` (`>=3.7`), `SQLAlchemy 2.0.36`, `gunicorn 22.0.0`.
