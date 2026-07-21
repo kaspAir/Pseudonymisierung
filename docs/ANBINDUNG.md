@@ -14,10 +14,10 @@ geändert — der Anbieter steckt im Pfadpräfix:
 
 | Anbieter | Basis-URL für die Anwendung | vollständiger Pfad |
 |---|---|---|
-| Anthropic | `http://127.0.0.1:8030/anthropic` | `POST /anthropic/v1/messages` |
-| Voyage | `http://127.0.0.1:8030/voyage` | `POST /voyage/v1/embeddings` |
+| Anthropic | `http://127.0.0.1:8040/anthropic` | `POST /anthropic/v1/messages` |
+| Voyage | `http://127.0.0.1:8040/voyage` | `POST /voyage/v1/embeddings` |
 
-Ports: `8030` develop · `8031` test · `8032` integration · `8033` main.
+Ports: `8040` develop · `8041` test · `8042` integration · `8043` main.
 
 Der Dienst ist **nur über `127.0.0.1` erreichbar** (keine Site, keine Subdomain, kein Proxy).
 Die aufrufende Anwendung läuft auf demselben Host.
@@ -219,7 +219,7 @@ unmöglich — und genau darauf kommt es bei Verwaltungskunden an.
 Neu in der Konfiguration, z.B.:
 
 ```
-PSEUDO_BASIS_URL=http://127.0.0.1:8030/anthropic
+PSEUDO_BASIS_URL=http://127.0.0.1:8040/anthropic
 PSEUDO_ANWENDUNG=hermes-pia
 PSEUDO_MANDANT=standard
 ```
@@ -231,7 +231,7 @@ reicht die Kopfzeile durch. Ein `x-api-key` wird **nicht** mehr gesetzt.
 
 Auf `main` gibt es kein Korpus-Modul; auf anderen Zweigen schon (`app/domains/corpus/`,
 Voyage-Embeddings). **Sobald dieser Zweig zusammengeführt wird, muss er ebenfalls über den
-Dienst laufen** — `http://127.0.0.1:8030/voyage`. Der Weg trägt denselben Text ins Ausland wie
+Dienst laufen** — `http://127.0.0.1:8040/voyage`. Der Weg trägt denselben Text ins Ausland wie
 der Chat und wird regelmässig übersehen.
 
 Beim Embedding-Weg gibt es **keine** Rückersetzung (zurück kommt ein Vektor). Der erzeugte

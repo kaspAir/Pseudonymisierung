@@ -8,10 +8,10 @@ die Zuordnungstabelle je an einer öffentlichen Adresse.
 
 | Umgebung | Port |
 |---|---|
-| develop | 8030 |
-| test | 8031 |
-| integration | 8032 |
-| main | 8033 |
+| develop | 8040 |
+| test | 8041 |
+| integration | 8042 |
+| main | 8043 |
 
 ## Umgebungsvariablen
 
@@ -35,7 +35,7 @@ python -c "from app.tresor import Tresor; print(Tresor.neuer_schluessel())"
 ## Start
 
 ```bash
-gunicorn run:app --bind 127.0.0.1:8030 --workers 2 --timeout 120 \
+gunicorn run:app --bind 127.0.0.1:8040 --workers 2 --timeout 120 \
   --access-logfile logs/access.log --error-logfile logs/error.log
 ```
 
@@ -51,8 +51,8 @@ Speicher zu liegen. Auf dem Zielhost mit 4 Kernen ist das nicht Feinschliff, son
    Basis-URL umstellen:
 
    ```
-   ANTHROPIC_BASE_URL = http://127.0.0.1:8030/anthropic
-   VOYAGE_BASE_URL    = http://127.0.0.1:8030/voyage
+   ANTHROPIC_BASE_URL = http://127.0.0.1:8040/anthropic
+   VOYAGE_BASE_URL    = http://127.0.0.1:8040/voyage
    ```
 
 4. Kopfzeilen bei jedem Aufruf mitgeben: `X-Pseudo-Anwendung`, `X-Pseudo-Mandant`,
@@ -75,8 +75,8 @@ laut statt gefährlich.
 Vorerst über einen SSH-Tunnel:
 
 ```bash
-ssh -L 8030:127.0.0.1:8030 u7031y_kaspar@<host>
-# danach im Browser: http://localhost:8030/pseudo/v1/health
+ssh -L 8040:127.0.0.1:8040 u7031y_kaspar@<host>
+# danach im Browser: http://localhost:8040/pseudo/v1/health
 ```
 
 ## Was noch fehlt

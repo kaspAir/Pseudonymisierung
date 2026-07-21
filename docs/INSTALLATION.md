@@ -1,6 +1,6 @@
 # Erstinstallation auf dem Host
 
-Für `develop` (Port 8030). Die übrigen Umgebungen unterscheiden sich nur in
+Für `develop` (Port 8040). Die übrigen Umgebungen unterscheiden sich nur in
 `PSEUDO_UMGEBUNG` und damit im Port.
 
 **Es wird keine Site angelegt, keine Subdomain, kein PHP-Proxy.** Der Dienst bindet auf
@@ -13,10 +13,10 @@ Konzentration von Schlüsseltresor und Zuordnungstabelle überhaupt rechtfertige
 
 | Stufe | Zweig | Port | Repo | virtuelle Umgebung |
 |---|---|---|---|---|
-| develop | `develop` | 8030 | `~/pseudonymisierung-dev` | `~/venv-pseudonymisierung-dev` |
-| test | `test` | 8031 | `~/pseudonymisierung-test` | `~/venv-pseudonymisierung-test` |
-| integration | `integration` | 8032 | `~/pseudonymisierung-int` | `~/venv-pseudonymisierung-int` |
-| main | `main` | 8033 | `~/pseudonymisierung-prod` | `~/venv-pseudonymisierung-prod` |
+| develop | `develop` | 8040 | `~/pseudonymisierung-dev` | `~/venv-pseudonymisierung-dev` |
+| test | `test` | 8041 | `~/pseudonymisierung-test` | `~/venv-pseudonymisierung-test` |
+| integration | `integration` | 8042 | `~/pseudonymisierung-int` | `~/venv-pseudonymisierung-int` |
+| main | `main` | 8043 | `~/pseudonymisierung-prod` | `~/venv-pseudonymisierung-prod` |
 
 **Eine virtuelle Umgebung je Stufe** — bewusst anders als bei den übrigen Anwendungen, die sich
 eine teilen. Sonst ändert ein Abhängigkeits-Wechsel auf `develop` still auch die Produktion.
@@ -142,13 +142,13 @@ Erst wenn HERMES PIA angebunden ist (siehe `ANBINDUNG.md`), sonst von Hand:
 
 ```bash
 # Muss 400 kontext_fehlt liefern - es gibt keinen Standard-Mandanten
-curl -s -X POST http://127.0.0.1:8030/anthropic/v1/messages \
+curl -s -X POST http://127.0.0.1:8040/anthropic/v1/messages \
   -H 'content-type: application/json' \
   -d '{"model":"claude-sonnet-4-6","max_tokens":64,
        "messages":[{"role":"user","content":"Hallo"}]}'
 
 # Muss 409 mit Befund zu "Vogt" liefern - hier geht NICHTS ins Ausland
-curl -s -X POST http://127.0.0.1:8030/anthropic/v1/messages \
+curl -s -X POST http://127.0.0.1:8040/anthropic/v1/messages \
   -H 'content-type: application/json' \
   -H 'X-Pseudo-Anwendung: hermes-pia' \
   -H 'X-Pseudo-Mandant: standard' \
@@ -163,7 +163,7 @@ erreicht, und beweist trotzdem, dass Erkennung, Blockieren und Befundformat lauf
 Ein Aufruf, der wirklich hinausgeht (und abgerechnet wird):
 
 ```bash
-curl -s -X POST http://127.0.0.1:8030/anthropic/v1/messages \
+curl -s -X POST http://127.0.0.1:8040/anthropic/v1/messages \
   -H 'content-type: application/json' \
   -H 'X-Pseudo-Anwendung: hermes-pia' -H 'X-Pseudo-Mandant: standard' \
   -H 'X-Pseudo-Projekt: rauchtest' \

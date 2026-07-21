@@ -1,6 +1,6 @@
 """Anbieterkompatible Routen.
 
-Die Anwendung setzt nur ihre base_url auf http://127.0.0.1:8030/<anbieter>;
+Die Anwendung setzt nur ihre base_url auf http://127.0.0.1:8040/<anbieter>;
 das SDK haengt /v1/messages bzw. /v1/embeddings selbst an.
 """
 from flask import Blueprint, current_app, g, jsonify, request

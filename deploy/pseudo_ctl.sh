@@ -34,10 +34,10 @@ BEFEHL="${1:-}"
 UMGEBUNG="${2:-}"
 
 case "$UMGEBUNG" in
-    develop)     PORT=8030; KURZ=dev  ; ZWEIG=develop     ;;
-    test)        PORT=8031; KURZ=test ; ZWEIG=test        ;;
-    integration) PORT=8032; KURZ=int  ; ZWEIG=integration ;;
-    main)        PORT=8033; KURZ=prod ; ZWEIG=main        ;;
+    develop)     PORT=8040; KURZ=dev  ; ZWEIG=develop     ;;
+    test)        PORT=8041; KURZ=test ; ZWEIG=test        ;;
+    integration) PORT=8042; KURZ=int  ; ZWEIG=integration ;;
+    main)        PORT=8043; KURZ=prod ; ZWEIG=main        ;;
     *) echo "Umgebung fehlt oder unbekannt: '${UMGEBUNG}'" >&2
        echo "Erlaubt: develop test integration main" >&2; exit 2 ;;
 esac
@@ -268,7 +268,7 @@ zeige_ports() {
     fi
     echo
     echo "Bindungsversuch je Port (frei = wir koennten ihn nehmen):"
-    for p in $(seq 8030 8060); do
+    for p in $(seq 8040 8060); do
         if "$VENV/bin/python" - "$p" <<'ENDE' 2>/dev/null
 import socket, sys
 s = socket.socket(); s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)

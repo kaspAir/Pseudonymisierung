@@ -1,7 +1,7 @@
 """Adapter fuer die Anthropic Messages API.
 
 Route: /anthropic/v1/messages - die Anwendung setzt nur ihre base_url auf
-http://127.0.0.1:8030/anthropic, das SDK haengt /v1/messages selbst an.
+http://127.0.0.1:8040/anthropic, das SDK haengt /v1/messages selbst an.
 """
 import copy
 

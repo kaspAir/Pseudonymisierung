@@ -8,12 +8,12 @@ import os
 
 UMGEBUNGEN = ("develop", "test", "integration", "main")
 
-# Port je Umgebung. Der Block 8030-8033 ist fuer dieses Produkt reserviert.
+# Port je Umgebung. Der Block 8040-8043 ist fuer dieses Produkt reserviert.
 PORTS = {
-    "develop": 8030,
-    "test": 8031,
-    "integration": 8032,
-    "main": 8033,
+    "develop": 8040,
+    "test": 8041,
+    "integration": 8042,
+    "main": 8043,
 }
 
 
@@ -27,7 +27,7 @@ class Config:
             )
 
         # PSEUDO_PORT ueberschreibt den vorgesehenen Port. Noetig, wenn der
-        # Block 8030-8033 auf dem Zielhost bereits belegt ist - "keine Site
+        # Block 8040-8043 auf dem Zielhost bereits belegt ist - "keine Site
         # angelegt" heisst nicht "Port frei".
         self.port = int(os.environ.get("PSEUDO_PORT") or PORTS[self.umgebung])
         self.bind_host = "127.0.0.1"

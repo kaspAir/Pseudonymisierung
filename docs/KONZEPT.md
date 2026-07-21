@@ -58,9 +58,9 @@ geändert, kein Aufrufcode. Der Anbieter steckt im **Pfadpräfix**:
 
 | `base_url` der Anwendung | resultierende Route | Anbieter |
 |---|---|---|
-| `https://…:8030/anthropic` | `/anthropic/v1/messages` | Anthropic Messages API |
-| `https://…:8030/voyage` | `/voyage/v1/embeddings` | Voyage Embeddings |
-| `https://…:8030/<weiterer>` | … | später, ohne Umbau |
+| `https://…:8040/anthropic` | `/anthropic/v1/messages` | Anthropic Messages API |
+| `https://…:8040/voyage` | `/voyage/v1/embeddings` | Voyage Embeddings |
+| `https://…:8040/<weiterer>` | … | später, ohne Umbau |
 
 Das SDK hängt `/v1/messages` selbst an. Damit bleibt die Zusage «nur Basis-URL ändern» erhalten
 und der Dienst ist trotzdem mehr-anbieter-fähig.
@@ -384,12 +384,12 @@ Geteiltes Infomaniak Managed Hosting, Gunicorn, kein Docker in Produktion. SQLit
 CI/CD über Jenkins per SSH. Promotion sequenziell **develop → test → integration → main**,
 Version bei jedem Promoten +0.0.1.
 
-**Port-Block: 8030–8033** (develop/test/integration/main).
+**Port-Block: 8040–8043** (develop/test/integration/main).
 
 **Der Dienst bekommt keine Site, keine Subdomain und keinen PHP-Proxy.** Er bindet auf
 `127.0.0.1` und ist aus dem Internet nicht erreichbar. Alle Aufrufer laufen auf demselben Host
 (HERMES PIA 8000/8003, ProS 8010–8012, Dashboard 8020–8023, KI-Technology-Radar); sie setzen
-ihre `base_url` auf `http://127.0.0.1:8030/anthropic` bzw. `…/voyage`.
+ihre `base_url` auf `http://127.0.0.1:8040/anthropic` bzw. `…/voyage`.
 
 Der PHP-Proxy existiert bei den übrigen Anwendungen nur, weil Apache öffentlichen Verkehr zu
 Gunicorn bringen muss. Hier gibt es keinen öffentlichen Verkehr — und damit liegen weder der
@@ -398,7 +398,7 @@ Das ist die einzige Konstellation, in der sich die Konzentration dieser Daten ü
 rechtfertigen lässt.
 
 Verwaltung (Listenpflege, Schlüssel, Blockierrate) vorerst über einen SSH-Tunnel
-(`ssh -L 8030:127.0.0.1:8030 …`). Eine öffentliche Admin-Site liesse sich später nachrüsten;
+(`ssh -L 8040:127.0.0.1:8040 …`). Eine öffentliche Admin-Site liesse sich später nachrüsten;
 den umgekehrten Weg — erst exponieren, dann zurücknehmen — gibt es nicht.
 
 Die Befund-Anzeige für den Nutzer (A4) gehört in die **aufrufende** Anwendung: HERMES PIA
